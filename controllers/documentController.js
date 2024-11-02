@@ -32,8 +32,9 @@ const DocumentsFormByApplicationId = async (req, res) => {
       const file = fileArray[0]; // Access the first file in the array
 
       const imageToken = uuidv4();
+
       const accessToken = uuidv4();
-      const fileName = `${imageToken}_${file.originalname}`;
+      const fileName = `${imageToken}`;
       const fileRef = bucket.file(fileName);
 
       // Create a write stream for Firebase Storage
@@ -49,7 +50,7 @@ const DocumentsFormByApplicationId = async (req, res) => {
         blobStream.on("error", (error) => reject(error));
         blobStream.on("finish", () => {
           const fileUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${fileName}?alt=media&token=${accessToken}`;
-          fileUrls[key] = fileUrl; // Store the file URL in fileUrls object
+          fileUrls[key] = fileUrl;
           resolve();
         });
         blobStream.end(file.buffer);

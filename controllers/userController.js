@@ -19,6 +19,7 @@ const registerUser = async (req, res) => {
     industry,
     lookingForWhatQualification,
     password,
+    type,
   } = req.body;
 
   console.log(req.body);
@@ -169,6 +170,7 @@ const registerUser = async (req, res) => {
       paid: false,
       documents: {},
       currentStatus: "Waiting for Verification",
+      type: type,
     });
 
     //update the id in the application form

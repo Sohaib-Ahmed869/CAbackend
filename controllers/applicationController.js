@@ -90,4 +90,110 @@ const getUserApplications = async (req, res) => {
   }
 };
 
-module.exports = { updateApplicationStatus, getUserApplications };
+const createNewApplication = async (req, res) => {
+  const { userId } = req.params;
+
+  const {
+    formal_education,
+    qualification,
+    state,
+    yearsOfExperience,
+    locationOfExperience,
+    industry,
+    lookingForWhatQualification,
+    type,
+  } = req.body;
+
+  console.log(req.body);
+  try {
+    // Step 1: Create an initial screening form
+    const initialFormRef = await db.collection("initialScreeningForms").add({
+      id: null,
+      userId: userId,
+      formal_education,
+      qualification,
+      state,
+      yearsOfExperience,
+      locationOfExperience,
+      industry,
+      lookingForWhatQualification,
+    });
+
+    //update the id in the initial screening form
+    await db.collection("initialScreeningForms").doc(initialFormRef.id).update({
+      id: initialFormRef.id,
+    });
+
+    // Step 2: Create a student intake form
+    const studentFormRef = await db.collection("studentIntakeForms").add({
+      id: null,
+      course: null,
+      intake: null,
+      modeOfStudy: null,
+      startDate: null,
+      endDate: null,
+      studentId: null,
+      userId: userId,
+    });
+
+    //update the id in the student intake form
+    await db.collection("studentIntakeForms").doc(studentFormRef.id).update({
+      id: studentFormRef.id,
+    });
+
+    // Step 3: Create a documents form
+    const documentsFormRef = await db.collection("documents").add({
+      id: null,
+      creditcard: null,
+      resume: null,
+      previousQualifications: null,
+      reference1: null,
+      reference2: null,
+      employmentLetter: null,
+      payslip: null,
+      id: null,
+    });
+
+    //update the id in the documents form
+    await db.collection("documents").doc(documentsFormRef.id).update({
+      id: documentsFormRef.id,
+    });
+
+    // Step 5: Create an application document linking all forms
+    const applicationRef = await db.collection("applications").add({
+      id: null,
+      userId: userId,
+      initialFormId: initialFormRef.id,
+      studentFormId: studentFormRef.id,
+      documentsFormId: documentsFormRef.id,
+      certificateId: null,
+      status: [
+        {
+          statusname: "Waiting for Verification",
+          time: new Date().toISOString(),
+        },
+      ],
+      verified: false,
+      paid: false,
+      documents: {},
+      currentStatus: "Waiting for Verification",
+      type: type,
+    });
+
+    //update the id in the application form
+    await db.collection("applications").doc(applicationRef.id).update({
+      id: applicationRef.id,
+    });
+
+    res.status(201).json({ message: "Application created successfully" });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = {
+  updateApplicationStatus,
+  getUserApplications,
+  createNewApplication,
+};

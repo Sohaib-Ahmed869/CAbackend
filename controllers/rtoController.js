@@ -51,4 +51,24 @@ const getApplications = async (req, res) => {
   }
 };
 
-module.exports = { getApplications };
+const registerRTO = async (req, res) => {
+  const { email, password, type } = req.body;
+  console.log(email, password, type);
+  try {
+    const user = await auth.createUser({
+      email,
+      password,
+    });
+    await db.collection("users").doc(user.uid).set({
+      email: email,
+      role: "rto",
+      type: type,
+    });
+    res.status(201).json({ userId: user.user.uid });
+  } catch (error) {
+    
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = { getApplications, registerRTO };
