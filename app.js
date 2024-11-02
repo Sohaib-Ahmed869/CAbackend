@@ -12,8 +12,9 @@ const rtoRoutes = require("./routes/rtoroutes");
 
 const app = express();
 app.use(express.json());
-app.use(cors({ origin: "*" }));
-
+app.use(cors({ 
+  origin: ["https://certifiedaustralia.vercel.app", "http://localhost:5173"]
+}));
 app.use("/api/users", userRoutes);
 app.use("/api/applications", applicationRoutes);
 app.use("/api/auth", authRoutes);
