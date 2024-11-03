@@ -2,7 +2,10 @@
 const cors = require("cors");
 require("dotenv").config();
 const express = require("express");
+const Stripe = require("stripe");
 const { db } = require("./firebase");
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 const userRoutes = require("./routes/userRoutes");
 const applicationRoutes = require("./routes/applicationRoutes");
@@ -12,9 +15,11 @@ const rtoRoutes = require("./routes/rtoroutes");
 
 const app = express();
 app.use(express.json());
-app.use(cors({ 
-  origin: ["https://certifiedaustralia.vercel.app", "http://localhost:5173"]
-}));
+app.use(
+  cors({
+    origin: ["https://certifiedaustralia.vercel.app", "http://localhost:5173"],
+  })
+);
 app.use("/api/users", userRoutes);
 app.use("/api/applications", applicationRoutes);
 app.use("/api/auth", authRoutes);
