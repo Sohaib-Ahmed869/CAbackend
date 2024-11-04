@@ -3,7 +3,11 @@ const { authenticateUser } = require("../middleware/authMiddleware");
 const { allowRoles } = require("../middleware/roleMiddleware");
 const upload = require("../utils/multerconfig");
 const express = require("express");
-const { registerUser, verifyUser } = require("../controllers/userController");
+const {
+  registerUser,
+  verifyUser,
+  registerUserbyAgent,
+} = require("../controllers/userController");
 const {
   updateApplicationStatus,
 } = require("../controllers/applicationController");
@@ -20,12 +24,8 @@ const {
 const router = express.Router();
 
 router.post("/register", registerUser);
-router.put(
-  "/verify/:userId",
-  authenticateUser,
-  allowRoles(["admin"]),
-  verifyUser
-);
+router.post("/registerByAgent", registerUserbyAgent);
+router.put("/verify/:userId", verifyUser);
 router.put("/updateApplicationStatus/:applicationId", updateApplicationStatus);
 router.put(
   "/documentUpload/:applicationId",

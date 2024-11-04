@@ -1,5 +1,6 @@
 const { db, bucket } = require("../firebase");
 const { v4: uuidv4 } = require("uuid");
+const { sendEmail } = require("../utils/emailUtil");
 
 const express = require("express");
 const app = express();
@@ -62,6 +63,16 @@ const UploadCertificate = async (req, res) => {
         },
       ],
     });
+    // Fetch user email and send notification
+    const { userId } = applicationDoc.data();
+    const userRef = db.collection("users").doc(userId);
+    const userDoc = await userRef.get();
+    if (userDoc.exists) {
+      const { email } = userDoc.data();
+      const emailBody = `Dear user, your certificate has been successfully generated. Please visit the website now to download your certificate.`;
+      const emailSubject = "Certificate Generated";
+      await sendEmail(email, emailBody, emailSubject);
+    }
 
     res.status(200).json({ message: "Certificate uploaded successfully" });
   } catch (error) {

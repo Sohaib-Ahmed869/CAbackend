@@ -1,6 +1,7 @@
 // controllers/documentController.js
 const { db, bucket } = require("../firebase");
 const { v4: uuidv4 } = require("uuid");
+const { sendEmail } = require("../utils/emailUtil");
 
 // Update Documents Form with PDF uploads
 const DocumentsFormByApplicationId = async (req, res) => {
@@ -72,6 +73,15 @@ const DocumentsFormByApplicationId = async (req, res) => {
         },
       ],
     });
+    const userId = applicationDoc.data().userId;
+    const userRef = db.collection("users").doc(userId);
+    const userDoc = await userRef.get();
+    if (userDoc.exists) {
+      const { email } = userDoc.data();
+      const emailBody = `Dear user, your documents have been sent for verification. You will receive an email once the verification is complete. Thank you for your patience.`;
+      const emailSubject = "Documents Sent for Verification";
+      await sendEmail(email, emailBody, emailSubject);
+    }
 
     res.status(200).json({
       message: "Documents Form updated successfully",

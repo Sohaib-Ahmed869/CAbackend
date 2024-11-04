@@ -1,7 +1,16 @@
 const express = require("express");
 // const { authenticateUser } = require("../middleware/authMiddleware");
 // const { allowRoles } = require("../middleware/roleMiddleware");
-const { adminLogin, registerAdmin, getCustomers, verifyCustomer, getApplications, verifyApplication, markApplicationAsPaid } = require("../controllers/adminController");
+const {
+  adminLogin,
+  registerAdmin,
+  getCustomers,
+  verifyCustomer,
+  getApplications,
+  verifyApplication,
+  markApplicationAsPaid,
+  getDashboardStats,
+} = require("../controllers/adminController");
 
 const router = express.Router();
 
@@ -12,5 +21,6 @@ router.put("/verify/:userId", verifyCustomer);
 router.get("/applications", getApplications);
 router.put("/verifyApplication/:applicationId", verifyApplication);
 router.put("/markApplicationAsPaid/:applicationId", markApplicationAsPaid);
+router.get("/dashboardStats", getDashboardStats);
 
 module.exports = router;

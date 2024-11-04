@@ -1,4 +1,5 @@
 const { db, auth } = require("../firebase");
+const {sendEmail} = require("../utils/emailUtil");
 const bcrypt = require("bcrypt");
 // Admin Login
 const adminLogin = async (req, res) => {
@@ -153,8 +154,43 @@ const verifyApplication = async (req, res) => {
       ],
     });
 
+    // Fetch user email and send a notification
+    const { userId } = applicationDoc.data();
+    const userRef = db.collection("users").doc(userId);
+    const userDoc = await userRef.get();
+
+    if (userDoc.exists) {
+      const { email, firstName, lastName } = userDoc.data();
+
+      const emailSubject = "Your Application Has Been Verified!";
+      const emailBody = `
+         <h2>Dear ${firstName} ${lastName},</h2>
+         
+         <p>Congratulations! We are pleased to inform you that your application has been successfully <strong>verified</strong>.</p>
+         
+         <p>Your application status is now <strong>"Waiting for Payment"</strong>. To complete the next step and finalize your registration, please proceed with the payment at your earliest convenience.</p>
+         
+         <h3>How to Make Your Payment:</h3>
+         <ul>
+           <li>Log in to your account on our platform.</li>
+           <li>Navigate to the <strong>Existing Applications</strong> section in your dashboard.</li>
+           <li>Follow the instructions to complete your payment securely.</li>
+         </ul>
+         
+         <p>If you have any questions or require assistance, please don't hesitate to reach out to our support team. We're here to help!</p>
+         
+         <p>Thank you for choosing us, and we look forward to welcoming you as a valuable member of our community.</p>
+         
+         <p>Warm regards,</p>
+         <p><strong>Certified Australia</strong></p>
+       `;
+
+      await sendEmail(email, emailBody, emailSubject);
+    }
+
     res.status(200).json({ message: "Application verified successfully" });
   } catch (error) {
+    console.log(error)
     res.status(500).json({ message: error.message });
   }
 };
@@ -192,6 +228,66 @@ const markApplicationAsPaid = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+const getDashboardStats = async (req, res) => {
+  let stats = {
+    totalApplications: 0,
+    totalCustomers: 0,
+    totalAgents: 0,
+    verifiedApplications: 0,
+    verifiedCustomers: 0,
+    paidApplications: 0,
+    rtoApplications: 0,
+  };
+
+  try {
+    const applicationsSnapshot = await db.collection("applications").get();
+    stats.totalApplications = applicationsSnapshot.size;
+
+    const customersSnapshot = await db
+      .collection("users")
+      .where("role", "==", "customer")
+      .get();
+    stats.totalCustomers = customersSnapshot.size;
+
+    const agentsSnapshot = await db
+      .collection("users")
+      .where("role", "==", "agent")
+      .get();
+    stats.totalAgents = agentsSnapshot.size;
+
+    const verifiedApplicationsSnapshot = await db
+      .collection("applications")
+      .where("verified", "==", true)
+      .get();
+    stats.verifiedApplications = verifiedApplicationsSnapshot.size;
+
+    const verifiedCustomersSnapshot = await db
+      .collection("users")
+      .where("role", "==", "customer")
+      .where("verified", "==", true)
+      .get();
+    stats.verifiedCustomers = verifiedCustomersSnapshot.size;
+
+    const paidApplicationsSnapshot = await db
+      .collection("applications")
+      .where("paid", "==", true)
+      .get();
+    stats.paidApplications = paidApplicationsSnapshot.size;
+
+    const rtoApplicationsSnapshot = await db
+      .collection("applications")
+      .where("currentStatus", "==", "Sent to RTO")
+      .get();
+
+    stats.rtoApplications = rtoApplicationsSnapshot.size;
+
+    res.status(200).json(stats);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   adminLogin,
   registerAdmin,
@@ -200,4 +296,5 @@ module.exports = {
   getApplications,
   verifyApplication,
   markApplicationAsPaid,
+  getDashboardStats,
 };
