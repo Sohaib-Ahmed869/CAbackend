@@ -1,5 +1,5 @@
 // controllers/documentController.js
-const { db, bucket } = require("../firebase");
+const { db, bucket,auth } = require("../firebase");
 const { v4: uuidv4 } = require("uuid");
 const { sendEmail } = require("../utils/emailUtil");
 
@@ -9,7 +9,7 @@ const DocumentsFormByApplicationId = async (req, res) => {
   console.log(req.files);
   console.log(req.body);
   //read the form data from the request
-  const documentFiles = req.body;
+  const documentFiles = req.files;
 
   try {
     // Step 1: Get documentsFormId from application document
@@ -82,6 +82,28 @@ const DocumentsFormByApplicationId = async (req, res) => {
       const emailSubject = "Documents Sent for Verification";
       await sendEmail(email, emailBody, emailSubject);
     }
+
+    const rto = await db.collection("users").where("role", "==", "rto").get();
+    rto.forEach(async (doc) => {
+      const rtoEmail = doc.data().email;
+      const rtoUserId = doc.data().id;
+      const loginToken = await auth.createCustomToken(rtoUserId);
+      const URL2 = `https://certifiedaustralia.vercel.app/rto?token=${loginToken}`;
+
+      const emailBody = `
+      <h2 style="color: #2c3e50;">🎉 Application Completed! 🎉</h2>
+      <p style="color: #34495e;">Hello RTO,</p>
+      <p>A user has completed their application</p>
+      <p>Click the button below to view the application:</p>
+      <a href="${URL2}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Upload Certificate</a>
+      <p style="font-style: italic;">For more details, please visit the rto dashboard.</p>
+      <p>Thank you for your attention.</p>
+      <p style="font-size: 1.2em;"><strong>Warm Regards,</strong><br>Certified Australia</p>
+      `;
+      const emailSubject = "Application Submitted";
+
+      await sendEmail(rtoEmail, emailBody, emailSubject);
+    });
 
     res.status(200).json({
       message: "Documents Form updated successfully",

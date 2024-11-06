@@ -37,7 +37,6 @@ const registerUser = async (req, res) => {
       email,
       password: password,
       displayName: `${firstName} ${lastName}`,
-      phoneNumber: phone,
     });
 
     if (!newUser) {
@@ -182,9 +181,83 @@ const registerUser = async (req, res) => {
 
     console.log(newUser.uid);
 
-    const emailBody = `Dear ${firstName} ${lastName},\n\nWelcome to our platform! Your registration is complete, and your application is currently in the "Waiting for Verification" status.\n\nThank you for joining us!\n\nBest Regards,\nYour Company`;
+    const token = await auth.createCustomToken(newUser.uid);
+    const loginUrl = `https://certifiedaustralia.vercel.app/existing-applications?token=${token}`;
+
+    const emailBody = `
+    <h2 style="color: #2c3e50;">🎉 Welcome to Our Platform, ${firstName} ${lastName}! 🎉</h2>
+
+
+    <p>We are thrilled to have you join our community! 🥳 Your registration has been successfully completed, and your application is currently waiting for verification </p>
+
+    <p>Please click the button below to access your application:</p>
+    <a href="${loginUrl}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Make Payment</a>
+
+    <p>
+    Thank you for choosing us to support your journey. Our team is here to assist you every step of the way, ensuring a seamless experience and providing the resources you need to achieve your goals. 🚀
+    </p>
+
+    
+    <p>We look forward to a successful journey together. 🌟</p>
+    
+    <p style="font-style: italic;">
+    If you have any questions or need assistance, please don't hesitate to <a href="mailto:info@certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">contact us 📧</a>.
+    </p>
+    <p style="marginTop:10px; marginBottom:10px">-------------------------------------------------------------------------</p>
+    <p><strong>Best Regards,</strong><br>Certified Australia</p>
+    `;
+
     const emailSubject = "Welcome to Our Platform";
     await sendEmail(email, emailBody, emailSubject);
+
+    //get admin email
+    const admin = await db
+      .collection("users")
+      .where("role", "==", "admin")
+      .get();
+    admin.forEach(async (doc) => {
+      const adminUserId = doc.data().id;
+      const adminEmail = doc.data().email;
+
+      const loginToken = await auth.createCustomToken(adminUserId);
+      const URL = `https://certifiedaustralia.vercel.app/admin?token=${loginToken}`;
+
+      const emailBody = `
+      <h2 style="color: #2c3e50;">🎉 New User Registration! 🎉</h2>
+      <p style="color: #34495e;">Hello Admin,</p>
+      <p>A new user has registered on the platform. Please review the application and verify the user.</p>
+      <p>Click the button below to view the application:</p>
+      <a href="${URL}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">View Application</a>
+      <p style="font-style: italic;">For more details, please visit the admin dashboard.</p>
+      <p>Thank you for your attention.</p>
+      <p style="font-size: 1.2em;"><strong>Warm Regards,</strong><br>Certified Australia</p>
+      `;
+      const emailSubject = "New User Registration";
+      await sendEmail(adminEmail, emailBody, emailSubject);
+    });
+
+    //get rto email
+    const rto = await db.collection("users").where("role", "==", "rto").get();
+    rto.forEach(async (doc) => {
+      const rtoEmail = doc.data().email;
+      const rtoUserId = doc.data().id;
+      const loginToken = await auth.createCustomToken(rtoUserId);
+      const URL2 = `https://certifiedaustralia.vercel.app/rto?token=${loginToken}`;
+
+      const emailBody = `
+      <h2 style="color: #2c3e50;">🎉 New User Registration! 🎉</h2>
+      <p style="color: #34495e;">Hello RTO,</p>
+      <p>A new user has registered on the platform. Please review the application and verify the user.</p>
+      <p>Click the button below to view the application:</p>
+      <a href="${URL2}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">View Application</a>
+      <p style="font-style: italic;">For more details, please visit the rto dashboard.</p>
+      <p>Thank you for your attention.</p>
+      <p style="font-size: 1.2em;"><strong>Warm Regards,</strong><br>Certified Australia</p>
+      `;
+      const emailSubject = "New User Registration";
+
+      await sendEmail(rtoEmail, emailBody, emailSubject);
+    });
 
     return res.status(201).json({ userId: newUser.uid });
   } catch (error) {
@@ -228,7 +301,6 @@ const registerUserbyAgent = async (req, res) => {
       email,
       password: password,
       displayName: `${firstName} ${lastName}`,
-      phoneNumber: phone,
     });
 
     if (!newUser) {
@@ -375,10 +447,72 @@ const registerUserbyAgent = async (req, res) => {
 
     console.log(newUser.uid);
 
-    const emailBody = `Dear ${firstName} ${lastName},\n\nWelcome to our platform! Your registration via our agent is complete, and your application is currently in the "Waiting for Verification" status.\n\nThank you for joining us!\n\nBest Regards,\nYour Company`;
+    const emailBody = `<h2 style="color: #2c3e50;">🎉 Welcome to Our Platform, {{firstName}} {{lastName}}! 🎉</h2>
+
+<p>Dear <strong>{{firstName}} {{lastName}}</strong>,</p>
+
+<p>We're delighted to welcome you to our platform! 😊 Your registration, completed via our trusted agent, has been successful. Your application is now under review with the status <strong style="color: #3498db;">"Waiting for Verification" 🔍</strong>.</p>
+
+<p style="font-size: 1.1em; color: #34495e;">
+We appreciate the confidence you have placed in us, and we are committed to supporting you on this journey. Our team is ready to help you achieve your goals and make the most of the opportunities available. 🚀
+</p>
+
+<p style="margin-top: 20px; font-style: italic;">
+For any inquiries or assistance, please feel free to <a href="mailto:info@certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">reach out to our support team 📧</a>.
+</p>
+
+<p>Thank you for joining us, and we look forward to a successful collaboration. 🤝</p>
+
+<p style="font-size: 1.2em;"><strong>Warm Regards,</strong><br>Certified Australia</p>
+`;
     const emailSubject = "Welcome to Our Platform";
     await sendEmail(email, emailBody, emailSubject);
 
+    const admin = await db
+      .collection("users")
+      .where("role", "==", "admin")
+      .get();
+    admin.forEach(async (doc) => {
+      const adminEmail = doc.data().email;
+      const adminUserId = doc.data().id;
+      const loginToken = await auth.createCustomToken(adminUserId);
+      const URL = `https://certifiedaustralia.vercel.app/admin?token=${loginToken}`;
+
+      const body_email = `
+      <h2 style="color: #2c3e50;">🎉 New User Registration! 🎉</h2>
+      <p style="color: #34495e;">Hello Admin,</p>
+      <p>A new user has registered on the platform. Please review the application and verify the user.</p>
+      <p>Click the button below to view the application:</p>
+      <a href="${URL}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">View Application</a>
+      <p style="font-style: italic;">For more details, please visit the admin dashboard.</p>
+      <p>Thank you for your attention.</p>
+      <p style="font-size: 1.2em;"><strong>Warm Regards,</strong><br>Certified Australia</p>
+      `;
+      const subject = "New User Registration";
+      await sendEmail(adminEmail, body_email, subject);
+    });
+
+    const rto = await db.collection("users").where("role", "==", "rto").get();
+    rto.forEach(async (doc) => {
+      const rtoEmail = doc.data().email;
+      const rtoUserId = doc.data().id;
+      const loginToken = await auth.createCustomToken(rtoUserId);
+      const URL2 = `https://certifiedaustralia.vercel.app/rto?token=${loginToken}`;
+
+      const emailBody = `
+      <h2 style="color: #2c3e50;">🎉 New User Registration! 🎉</h2>
+      <p style="color: #34495e;">Hello RTO,</p>
+      <p>A new user has registered on the platform. Please review the application and verify the user.</p>
+      <p>Click the button below to view the application:</p>
+      <a href="${URL2}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">View Application</a>
+      <p style="font-style: italic;">For more details, please visit the rto dashboard.</p>
+      <p>Thank you for your attention.</p>
+      <p style="font-size: 1.2em;"><strong>Warm Regards,</strong><br>Certified Australia</p>
+      `;
+      const emailSubject = "New User Registration";
+
+      await sendEmail(rtoEmail, emailBody, emailSubject);
+    });
     return res.status(201).json({ userId: newUser.uid });
   } catch (error) {
     console.log(error);

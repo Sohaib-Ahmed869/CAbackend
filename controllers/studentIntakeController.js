@@ -1,5 +1,5 @@
 // controllers/studentIntakeFormController.js
-const { db } = require("../firebase");
+const { db,auth } = require("../firebase");
 const { sendEmail } = require("../utils/emailUtil");
 
 // Update Student Intake Form by applicationId
@@ -103,31 +103,30 @@ const StudentIntakeFormByApplicationId = async (req, res) => {
     const userRef = db.collection("users").doc(userId);
     const userDoc = await userRef.get();
 
+    const token = await auth.createCustomToken(userId);
+
+    const loginUrl = `https://certifiedaustralia.vercel.app/existing-applications?token=${token}`;
+
     if (userDoc.exists) {
       const { email, firstName, lastName } = userDoc.data();
       const emailSubject = "Student Intake Form Submission and Next Steps";
       const emailBody = `
-        <h2>Dear ${firstName} ${lastName},</h2>
-        
-        <p>Thank you for completing and submitting your Student Intake Form. We have successfully received the details you provided, and your application has moved to the next stage.</p>
-        
-        <h3>Next Steps: Document Upload</h3>
-        <p>To ensure a seamless progression in your application process, we kindly request you to upload the necessary documents <strong>(in pdf format)</strong>. These documents help us verify your information and keep your application on track.</p>
-        
-        <h4>Instructions for Document Upload:</h4>
-        <ul>
-          <li>Log in to your account on our platform.</li>
-          <li>Navigate to the <strong>Document Upload</strong> section in your dashboard.</li>
-          <li>Follow the prompts to securely upload all required documents.</li>
-        </ul>
-        
-        <p>We appreciate your cooperation and attention to detail. Should you need any assistance or have questions regarding the document upload process, please feel free to reach out to our support team at any time.</p>
-        
-        <p>Thank you for your diligence and for choosing us. We look forward to supporting you further in this journey.</p>
-        
-        <p>Warm regards,</p>
-        <p><strong>Certified Australia</strong></p>
-      `;
+  <h2>Dear ${firstName} ${lastName},</h2>
+  
+  <p>Thank you for completing and submitting your Student Intake Form. We have successfully received the details you provided, and your application has moved to the next stage.</p>
+  
+  <h3>Next Steps: Document Upload</h3>
+  <p>To proceed with your application, please upload the necessary documents using the link below:</p>
+  
+  <a href="${loginUrl}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Upload Documents</a>
+
+  <p>We appreciate your cooperation and attention to detail. Should you need any assistance, please feel free to reach out to our support team at any time.</p>
+  
+  <p>Thank you for choosing us. We look forward to supporting you further in this journey.</p>
+  
+  <p>Warm regards,</p>
+  <p><strong>Certified Australia</strong></p>
+`;
 
       await sendEmail(email, emailBody, emailSubject);
     }

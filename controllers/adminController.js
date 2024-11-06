@@ -1,5 +1,6 @@
 const { db, auth } = require("../firebase");
-const {sendEmail} = require("../utils/emailUtil");
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+const { sendEmail } = require("../utils/emailUtil");
 const bcrypt = require("bcrypt");
 // Admin Login
 const adminLogin = async (req, res) => {
@@ -156,11 +157,45 @@ const verifyApplication = async (req, res) => {
 
     // Fetch user email and send a notification
     const { userId } = applicationDoc.data();
+    const { price } = applicationDoc.data();
+
+    let finalPrice = price.replace(",", "");
     const userRef = db.collection("users").doc(userId);
     const userDoc = await userRef.get();
 
     if (userDoc.exists) {
       const { email, firstName, lastName } = userDoc.data();
+
+      // Create a customer on Stripe
+      const customer = await stripe.customers.create({
+        email: email,
+        name: `${firstName} ${lastName}`,
+      });
+
+      // Create an invoice item (adjust parameters to match your needs)
+      await stripe.invoiceItems.create({
+        customer: customer.id,
+        amount: finalPrice,
+        currency: "aud",
+        description: "Application Processing Fee",
+      });
+
+      // Create the invoice
+      const invoice = await stripe.invoices.create({
+        customer: customer.id,
+        auto_advance: false, // Auto-finalizes the invoice
+      });
+
+      // Finalize the invoice and retrieve it to get the hosted URL
+      const finalizedInvoice = await stripe.invoices.finalizeInvoice(
+        invoice.id
+      );
+
+      // Finalize and send the invoice
+      await stripe.invoices.finalizeInvoice(invoice.id);
+
+      const token = await auth.createCustomToken(userId);
+      const loginUrl = `https://certifiedaustralia.vercel.app/existing-applications?token=${token}`;
 
       const emailSubject = "Your Application Has Been Verified!";
       const emailBody = `
@@ -171,11 +206,16 @@ const verifyApplication = async (req, res) => {
          <p>Your application status is now <strong>"Waiting for Payment"</strong>. To complete the next step and finalize your registration, please proceed with the payment at your earliest convenience.</p>
          
          <h3>How to Make Your Payment:</h3>
+         
          <ul>
-           <li>Log in to your account on our platform.</li>
-           <li>Navigate to the <strong>Existing Applications</strong> section in your dashboard.</li>
-           <li>Follow the instructions to complete your payment securely.</li>
+         <li>Log in to your account on our platform.</li>
+         <li>Navigate to the <strong>Existing Applications</strong> section in your dashboard.</li>
+         <li>Follow the instructions to complete your payment securely.</li>
          </ul>
+         
+         <p>You can view and pay your invoice here: <a href="${finalizedInvoice.hosted_invoice_url}">Pay Invoice</a></p>
+         
+         <a href="${loginUrl}" style="background-color: #3498db; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Fill Student Intake Form</a>
          
          <p>If you have any questions or require assistance, please don't hesitate to reach out to our support team. We're here to help!</p>
          
@@ -190,7 +230,7 @@ const verifyApplication = async (req, res) => {
 
     res.status(200).json({ message: "Application verified successfully" });
   } catch (error) {
-    console.log(error)
+    console.log(error);
     res.status(500).json({ message: error.message });
   }
 };

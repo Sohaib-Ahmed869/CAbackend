@@ -1,7 +1,7 @@
 // controllers/applicationController.js
-const { db } = require("../firebase");
+const { db, auth } = require("../firebase");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
-const {sendEmail} = require("../utils/emailUtil");
+const { sendEmail } = require("../utils/emailUtil");
 // Update Application Status
 const updateApplicationStatus = async (req, res) => {
   const { applicationId } = req.params;
@@ -359,13 +359,23 @@ const markApplicationAsPaid = async (req, res) => {
       ],
     });
 
+    let firstNameG = "";
+    let lastNameG = "";
+
     // Fetch user email and send a notification
     const { userId } = applicationDoc.data();
     const userRef = db.collection("users").doc(userId);
     const userDoc = await userRef.get();
 
+    const token = await auth.createCustomToken(userId);
+
+    const loginUrl = `https://certifiedaustralia.vercel.app/existing-applications?token=${token}`;
+
     if (userDoc.exists) {
       const { email, firstName, lastName } = userDoc.data();
+
+      firstNameG = firstName;
+      lastNameG = lastName;
 
       const emailSubject = "Payment Confirmation and Next Steps";
       const emailBody = `
@@ -381,6 +391,9 @@ const markApplicationAsPaid = async (req, res) => {
           <li>Navigate to the <strong>Existing Applications</strong> section in your dashboard.</li>
           <li>Fill in all required details accurately to ensure a smooth application process.</li>
         </ul>
+
+        <a href="${loginUrl}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Upload Documents</a>
+      
         
         <p>If you have any questions or need support with the form, feel free to contact our support team. We're here to assist you every step of the way!</p>
         
@@ -392,6 +405,25 @@ const markApplicationAsPaid = async (req, res) => {
 
       await sendEmail(email, emailBody, emailSubject);
     }
+
+    const admin = await db
+      .collection("users")
+      .where("role", "==", "admin")
+      .get();
+    admin.forEach(async (doc) => {
+      const adminEmail = doc.data().email;
+      const adminUserId = doc.data().id;
+      const loginToken = await auth.createCustomToken(adminUserId);
+      const URL = `https://certifiedaustralia.vercel.app/admin?token=${loginToken}`;
+
+      const body_email = `
+      <h2 style="color: #2c3e50;">🎉 Payment Made</h2>
+      <p style="color: #2c3e50;">The user ${firstNameG} ${lastNameG} has made the payment for the application</p>
+      <a href="${URL}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">View Application</a>
+      `;
+      const subject = "New Payment Processed";
+      await sendEmail(adminEmail, body_email, subject);
+    });
 
     res.status(200).json({ message: "Application marked as paid" });
   } catch (error) {
