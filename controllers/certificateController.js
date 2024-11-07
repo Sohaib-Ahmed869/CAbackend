@@ -78,7 +78,7 @@ const UploadCertificate = async (req, res) => {
       <h2>Dear ${firstName} ${lastName},</h2>
       <p>Contragulations. Your certificate has been generated. 🥳 
       You can download it from the following link:</p>
-     <a href="${loginUrl}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Upload Documents</a>
+     <a href="${loginUrl}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">View Certificate</a>
 
       <p>For more details, please visit your dashboard.</p>
       <p>Regards,</p>

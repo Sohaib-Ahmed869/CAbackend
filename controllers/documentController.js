@@ -1,5 +1,5 @@
 // controllers/documentController.js
-const { db, bucket,auth } = require("../firebase");
+const { db, bucket, auth } = require("../firebase");
 const { v4: uuidv4 } = require("uuid");
 const { sendEmail } = require("../utils/emailUtil");
 
@@ -77,8 +77,16 @@ const DocumentsFormByApplicationId = async (req, res) => {
     const userRef = db.collection("users").doc(userId);
     const userDoc = await userRef.get();
     if (userDoc.exists) {
-      const { email } = userDoc.data();
-      const emailBody = `Dear user, your documents have been sent for verification. You will receive an email once the verification is complete. Thank you for your patience.`;
+      const { email, firstName, lastName } = userDoc.data();
+      const emailBody = `
+     <h2 style="color: #2c3e50;">🎉 Application Completed! 🎉</h2>
+      <p style="color: #34495e;">Hello ${firstName} ${lastName},</p>
+      <p>Your documents have been successfully uploaded.</p>
+      <p style="font-style: italic;">Please wait while we verify your documents.</p>
+      <p>Thank you for your attention.</p>
+      <p style="font-size: 1.2em;"><strong>Warm Regards,</strong><br>Certified Australia</p>
+      `;
+
       const emailSubject = "Documents Sent for Verification";
       await sendEmail(email, emailBody, emailSubject);
     }
