@@ -117,7 +117,14 @@ const StudentIntakeFormByApplicationId = async (req, res) => {
   
   <h3>Next Steps: Document Upload</h3>
   <p>To proceed with your application, please upload the necessary documents using the link below:</p>
-  
+  <h4>Documents Required:</h4>
+  <ul>
+    <li><strong>Proof of Work Experience:</strong> Resume, job references, or detailed job descriptions.</li>
+    <li><strong>Educational Transcripts:</strong> Copies of qualifications, certificates, or diplomas.</li>
+    <li><strong>Skill Evidence:</strong> Additional certifications or training certificates.</li>
+    <li><strong>Photo and Video Evidence (if applicable):</strong> Demonstrations of your work or projects that showcase your skills.</li>
+    <li><strong>Identification Documents:</strong> A copy of your ID or passport.</li>
+  </ul>
   <a href="${loginUrl}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Upload Documents</a>
 
   <p>We appreciate your cooperation and attention to detail. Should you need any assistance, please feel free to reach out to our support team at any time.</p>

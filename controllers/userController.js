@@ -204,8 +204,7 @@ const registerUser = async (req, res) => {
     
     <p style="margin-top:10px; margin-bottom:10px">-------------------------------------------------------------------------</p>
 
-    <p><strong>Best Regards,</strong><br>Certified Australia</p>
-
+  
     <p>
     <strong>Best Regards,</strong><br>
     The Certified Australia Team<br>
@@ -238,33 +237,19 @@ const registerUser = async (req, res) => {
       <a href="${URL}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">View Application</a>
       <p style="font-style: italic;">For more details, please visit the admin dashboard.</p>
       <p>Thank you for your attention.</p>
-      <p style="font-size: 1.2em;"><strong>Warm Regards,</strong><br>Certified Australia</p>
+     <p style="margin-top:10px; margin-bottom:10px">-------------------------------------------------------------------------</p>
+
+  
+    <p>
+    <strong>Best Regards,</strong><br>
+    The Certified Australia Team<br>
+    Email: <a href="mailto:info@certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">info@certifiedaustralia.com.au</a><br>
+    Phone: <a href="tel:1300044927" style="color: #3498db; text-decoration: none;">1300 044 927</a><br>
+    Website: <a href="https://www.certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">www.certifiedaustralia.com.au</a>
+    </p>
       `;
       const emailSubject = "New User Registration";
       await sendEmail(adminEmail, emailBody, emailSubject);
-    });
-
-    //get rto email
-    const rto = await db.collection("users").where("role", "==", "rto").get();
-    rto.forEach(async (doc) => {
-      const rtoEmail = doc.data().email;
-      const rtoUserId = doc.data().id;
-      const loginToken = await auth.createCustomToken(rtoUserId);
-      const URL2 = `https://certifiedaustralia.vercel.app/rto?token=${loginToken}`;
-
-      const emailBody = `
-      <h2 style="color: #2c3e50;">🎉 New User Registration! 🎉</h2>
-      <p style="color: #34495e;">Hello RTO,</p>
-      <p>A new user has registered on the platform. Please review the application and verify the user.</p>
-      <p>Click the button below to view the application:</p>
-      <a href="${URL2}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">View Application</a>
-      <p style="font-style: italic;">For more details, please visit the rto dashboard.</p>
-      <p>Thank you for your attention.</p>
-      <p style="font-size: 1.2em;"><strong>Warm Regards,</strong><br>Certified Australia</p>
-      `;
-      const emailSubject = "New User Registration";
-
-      await sendEmail(rtoEmail, emailBody, emailSubject);
     });
 
     return res.status(201).json({ userId: newUser.uid });
@@ -471,7 +456,12 @@ For any inquiries or assistance, please feel free to <a href="mailto:info@certif
 
 <p>Thank you for joining us, and we look forward to a successful collaboration. 🤝</p>
 
-<p style="font-size: 1.2em;"><strong>Warm Regards,</strong><br>Certified Australia</p>
+<strong>Best Regards,</strong><br>
+    The Certified Australia Team<br>
+    Email: <a href="mailto:info@certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">info@certifiedaustralia.com.au</a><br>
+    Phone: <a href="tel:1300044927" style="color: #3498db; text-decoration: none;">1300 044 927</a><br>
+    Website: <a href="https://www.certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">www.certifiedaustralia.com.au</a>
+    </p>
 `;
     const emailSubject = "Welcome to Our Platform";
     await sendEmail(email, emailBody, emailSubject);
@@ -493,8 +483,12 @@ For any inquiries or assistance, please feel free to <a href="mailto:info@certif
       <p>Click the button below to view the application:</p>
       <a href="${URL}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">View Application</a>
       <p style="font-style: italic;">For more details, please visit the admin dashboard.</p>
-      <p>Thank you for your attention.</p>
-      <p style="font-size: 1.2em;"><strong>Warm Regards,</strong><br>Certified Australia</p>
+     <strong>Best Regards,</strong><br>
+    The Certified Australia Team<br>
+    Email: <a href="mailto:info@certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">info@certifiedaustralia.com.au</a><br>
+    Phone: <a href="tel:1300044927" style="color: #3498db; text-decoration: none;">1300 044 927</a><br>
+    Website: <a href="https://www.certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">www.certifiedaustralia.com.au</a>
+    </p>
       `;
       const subject = "New User Registration";
       await sendEmail(adminEmail, body_email, subject);
@@ -511,15 +505,53 @@ For any inquiries or assistance, please feel free to <a href="mailto:info@certif
       <h2 style="color: #2c3e50;">🎉 New User Registration! 🎉</h2>
       <p style="color: #34495e;">Hello RTO,</p>
       <p>A new user has registered on the platform. Please review the application and verify the user.</p>
+       <strong>Application Details:</strong>
+      <ul>
+      <li>First Name: ${firstName}</li>
+      <li>Last Name: ${lastName}</li>
+      <li>Email: ${email}</li>
+      <li>Phone: ${phone}</li>
+      </ul>
       <p>Click the button below to view the application:</p>
       <a href="${URL2}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">View Application</a>
       <p style="font-style: italic;">For more details, please visit the rto dashboard.</p>
-      <p>Thank you for your attention.</p>
-      <p style="font-size: 1.2em;"><strong>Warm Regards,</strong><br>Certified Australia</p>
+      <strong>Best Regards,</strong><br>
+    The Certified Australia Team<br>
+    Email: <a href="mailto:info@certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">info@certifiedaustralia.com.au</a><br>
+    Phone: <a href="tel:1300044927" style="color: #3498db; text-decoration: none;">1300 044 927</a><br>
+    Website: <a href="https://www.certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">www.certifiedaustralia.com.au</a>
+    </p>
       `;
       const emailSubject = "New User Registration";
 
       await sendEmail(rtoEmail, emailBody, emailSubject);
+
+      //send email to agent
+      const agent = await db.collection("users").doc(agentId).get();
+      const agentEmail = agent.data().email;
+      const agentUserId = agent.data().id;
+      const loginToken2 = await auth.createCustomToken(agentUserId);
+
+      const emailBody2 = `
+      <h2 style="color: #2c3e50;">🎉 New User Registration! 🎉</h2>
+
+      <p style="color: #34495e;">Hello Agent,</p>
+      <p>A new user has registered on the platform. Please review the application and verify the user.</p>
+      <strong>Application Details:</strong>
+      <ul>
+      <li>First Name: ${firstName}</li>
+      <li>Last Name: ${lastName}</li>
+      <li>Email: ${email}</li>
+      <li>Phone: ${phone}</li>
+      </ul>
+      
+      <strong>Best Regards,</strong><br>
+    The Certified Australia Team<br>
+    Email: <a href="mailto:info@certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">info@certifiedaustralia.com.au</a><br>
+    Phone: <a href="tel:1300044927" style="color: #3498db; text-decoration: none;">1300 044 927</a><br>
+    Website: <a href="https://www.certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">www.certifiedaustralia.com.au</a>
+    </p>
+      `;
     });
     return res.status(201).json({ userId: newUser.uid });
   } catch (error) {

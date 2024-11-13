@@ -63,8 +63,9 @@ const registerRTO = async (req, res) => {
       email: email,
       role: "rto",
       type: type,
+      id: user.uid,
     });
-    res.status(201).json({ userId: user.user.uid });
+    res.status(201).json({ userId: user.uid });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

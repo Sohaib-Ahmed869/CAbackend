@@ -29,8 +29,13 @@ const DocumentsFormByApplicationId = async (req, res) => {
 
     // Step 2: Upload PDFs to Firebase Storage and get URLs
     const fileUrls = {};
+
     for (const [key, fileArray] of Object.entries(documentFiles)) {
       const file = fileArray[0]; // Access the first file in the array
+
+      if (!file) {
+        continue;
+      }
 
       const imageToken = uuidv4();
 

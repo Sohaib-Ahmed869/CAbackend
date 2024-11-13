@@ -30,6 +30,8 @@ router.put("/updateApplicationStatus/:applicationId", updateApplicationStatus);
 router.put(
   "/documentUpload/:applicationId",
   upload.fields([
+    { name: "idCard", maxCount: 1 },
+    { name: "australian_citizenship", maxCount: 1 },
     { name: "license", maxCount: 1 },
     { name: "passport", maxCount: 1 },
     { name: "birth_certificate", maxCount: 1 },

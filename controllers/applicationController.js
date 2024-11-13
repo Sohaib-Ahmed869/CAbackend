@@ -297,10 +297,32 @@ const createNewApplicationByAgent = async (req, res) => {
 
     res.status(201).json({ message: "Application created successfully" });
 
-    // //send email to user
-    // const userRef = db.collection("users").doc(userId);
-    // const userDoc = await userRef.get();
-    // const userData = userDoc.data();
+    //send email to agent
+    const agentRef = db.collection("users").doc(agentId);
+    const agentDoc = await agentRef.get();
+    if (agentDoc.exists) {
+      const { email, firstName, lastName } = agentDoc.data();
+      const emailSubject = "New Application Created";
+      const emailBody = `
+        <h2>Dear ${firstName} ${lastName},</h2>
+        
+        <p>A new application has been created for a user. Please log in to your account to view the application details and proceed with the verification process.</p>
+        <strong>Application Details:</strong>
+        <ul>
+          <li>Application ID: ${applicationRef.id}</li>
+          <li>Application Type: ${type}</li>
+          <li>Price: ${price}</li>
+          <li>Application Date: ${new Date().toISOString()}</li>
+        </ul>
+
+        <p>Thank you for your continued support.</p>
+        
+        <p>Warm regards,</p>
+        <p><strong>Certified Australia</strong></p>
+      `;
+
+      await sendEmail(email, emailBody, emailSubject);
+    }
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: error.message });

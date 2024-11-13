@@ -110,8 +110,8 @@ const UploadCertificate = async (req, res) => {
 
         const emailBody = `
         <h2>New Certificate Generated</h2>
-        <p>A new certificate has been generated. 🥳
-        You can view it by clicking on the link below:</p>]
+        <p>A new certificate has been generated for the user.
+        You can view it by clicking on the link below:</p>
         <a href="${loginUrl}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">View Certificate</a>
         <p>For more details, please visit your dashboard.</p>
         <p>Regards,</p>

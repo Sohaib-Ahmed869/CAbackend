@@ -29,6 +29,7 @@ const registerAdmin = async (req, res) => {
     await db.collection("users").doc(user.uid).set({
       email,
       role: "admin",
+      id: user.uid,
     });
 
     res.status(200).json({ message: "Admin registered successfully" });
