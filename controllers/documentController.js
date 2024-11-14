@@ -102,14 +102,15 @@ const DocumentsFormByApplicationId = async (req, res) => {
       await sendEmail(email, emailBody, emailSubject);
     }
 
-    const rto = await db.collection("users").where("role", "==", "rto").get();
-    rto.forEach(async (doc) => {
-      const rtoEmail = doc.data().email;
-      const rtoUserId = doc.data().id;
-      const loginToken = await auth.createCustomToken(rtoUserId);
-      const URL2 = `https://certifiedaustralia.vercel.app/rto?token=${loginToken}`;
+    if (applicationDoc.data().paid) {
+      const rto = await db.collection("users").where("role", "==", "rto").get();
+      rto.forEach(async (doc) => {
+        const rtoEmail = doc.data().email;
+        const rtoUserId = doc.data().id;
+        const loginToken = await auth.createCustomToken(rtoUserId);
+        const URL2 = `https://certifiedaustralia.vercel.app/rto?token=${loginToken}`;
 
-      const emailBody = `
+        const emailBody = `
       <h2 style="color: #2c3e50;">🎉 Application Completed! 🎉</h2>
       <p style="color: #34495e;">Hello RTO,</p>
       <p>A user has completed their application</p>
@@ -125,10 +126,11 @@ const DocumentsFormByApplicationId = async (req, res) => {
     Website: <a href="https://www.certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">www.certifiedaustralia.com.au</a>
     </p>
       `;
-      const emailSubject = "Application Submitted";
+        const emailSubject = "Application Submitted";
 
-      await sendEmail(rtoEmail, emailBody, emailSubject);
-    });
+        await sendEmail(rtoEmail, emailBody, emailSubject);
+      });
+    }
 
     res.status(200).json({
       message: "Documents Form updated successfully",

@@ -45,6 +45,8 @@ const getUserApplications = async (req, res) => {
       snapshot.docs.map(async (doc) => {
         const applicationData = doc.data();
 
+        console.log(applicationData);
+
         // Fetch initial screening form data if exists
         const initialFormData = applicationData.initialFormId
           ? (
@@ -128,14 +130,38 @@ const createNewApplication = async (req, res) => {
 
     // Step 2: Create a student intake form
     const studentFormRef = await db.collection("studentIntakeForms").add({
-      id: null,
-      course: null,
-      intake: null,
-      modeOfStudy: null,
-      startDate: null,
-      endDate: null,
-      studentId: null,
       userId: userId,
+      firstName: null,
+      lastName: null,
+      middleName: null,
+      USI: null,
+      gender: null,
+      dob: null,
+      homeAddress: null,
+      suburb: null,
+      postcode: null,
+      state: null,
+      contactNumber: null,
+      email: null,
+      countryOfBirth: null,
+      australianCitizen: null,
+      aboriginalOrTorresStraitIslander: null,
+      englishLevel: null,
+      disability: null,
+      educationLevel: null,
+      previousQualifications: null,
+      employmentStatus: null,
+      businessName: null,
+      position: null,
+      employersLegalName: null,
+      employersAddress: null,
+      employersContactNumber: null,
+      creditsTransfer: null,
+      nameOfQualification: null,
+      YearCompleted: null,
+      agree: false,
+      date: null,
+      id: null,
     });
 
     //update the id in the student intake form
@@ -161,8 +187,11 @@ const createNewApplication = async (req, res) => {
       id: documentsFormRef.id,
     });
 
+    const generateAppID = "APP" + Math.floor(1000 + Math.random() * 9000);
+
     // Step 5: Create an application document linking all forms
     const applicationRef = await db.collection("applications").add({
+      applicationId: generateAppID,
       id: null,
       userId: userId,
       initialFormId: initialFormRef.id,
@@ -171,14 +200,14 @@ const createNewApplication = async (req, res) => {
       certificateId: null,
       status: [
         {
-          statusname: "Waiting for Verification",
+          statusname: "Waiting for Payment",
           time: new Date().toISOString(),
         },
       ],
-      verified: false,
+      verified: true,
       paid: false,
       documents: {},
-      currentStatus: "Waiting for Verification",
+      currentStatus: "Waiting for Payment",
       type: type,
       price: price,
     });
@@ -368,17 +397,6 @@ const markApplicationAsPaid = async (req, res) => {
 
     await applicationRef.update({
       paid: true,
-      currentStatus: "Student Intake Form",
-    });
-
-    await applicationRef.update({
-      status: [
-        ...applicationDoc.data().status,
-        {
-          statusname: "Student Intake Form",
-          time: new Date().toISOString(),
-        },
-      ],
     });
 
     let firstNameG = "";
@@ -446,6 +464,68 @@ const markApplicationAsPaid = async (req, res) => {
       const subject = "New Payment Processed";
       await sendEmail(adminEmail, body_email, subject);
     });
+
+    // if(applicationDoc.data().agentId){
+    //   const agentRef = db.collection("users").doc(applicationDoc.data().agentId);
+    //   const agentDoc = await agentRef.get();
+    //   if (agentDoc.exists) {
+    //     const { email, firstName, lastName } = agentDoc.data();
+    //     const emailSubject = "Payment Confirmation and Next Steps";
+    //     const emailBody = `
+    //       <h2>Dear ${firstName} ${lastName},</h2>
+
+    //       <p>We are delighted to inform you that your client ${firstNameG} ${lastNameG} has made the payment for the application.</p>
+
+    //       <p>The application has now progressed to the <strong>"Student Intake Form"</strong> stage. At this step, we kindly request you to guide your client to complete the necessary information in the intake form to proceed further.</p>
+
+    //       <h3>Next Steps: Complete the Student Intake Form</h3>
+    //       <ul>
+    //         <li>Log in to your account on our platform.</li>
+    //         <li>Navigate to the <strong>Existing Applications</strong> section in your dashboard.</li>
+    //         <li>Fill in all required details accurately to ensure a smooth application process.</li>
+    //       </ul>
+
+    //       <p>If you have any questions or need support with the form, feel free to contact our support team. We're here to assist you every step of the way!</p>
+
+    //       <p>Thank you once again for choosing us. We look forward to supporting you on your educational journey.</p>
+
+    //       <p>Warm regards,</p>
+    //       <p><strong>Certified Australia</strong></p>
+    //     `;
+
+    //     await sendEmail(email, emailBody, emailSubject);
+    //   }
+    // }
+
+    if (applicationDoc.data().currentStatus === "Sent to RTO") {
+      const rto = await db.collection("users").where("role", "==", "rto").get();
+      rto.forEach(async (doc) => {
+        const rtoEmail = doc.data().email;
+        const rtoUserId = doc.data().id;
+        const loginToken = await auth.createCustomToken(rtoUserId);
+        const URL2 = `https://certifiedaustralia.vercel.app/rto?token=${loginToken}`;
+
+        const emailBody = `
+      <h2 style="color: #2c3e50;">🎉 Application Completed! 🎉</h2>
+      <p style="color: #34495e;">Hello RTO,</p>
+      <p>A user has completed their application</p>
+      <p>Click the button below to view the application:</p>
+      <a href="${URL2}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Upload Certificate</a>
+      <p style="font-style: italic;">For more details, please visit the rto dashboard.</p>
+      <p>Thank you for your attention.</p>
+      <p>
+    <strong>Best Regards,</strong><br>
+    The Certified Australia Team<br>
+    Email: <a href="mailto:info@certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">info@certifiedaustralia.com.au</a><br>
+    Phone: <a href="tel:1300044927" style="color: #3498db; text-decoration: none;">1300 044 927</a><br>
+    Website: <a href="https://www.certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">www.certifiedaustralia.com.au</a>
+    </p>
+      `;
+        const emailSubject = "Application Submitted";
+
+        await sendEmail(rtoEmail, emailBody, emailSubject);
+      });
+    }
 
     res.status(200).json({ message: "Application marked as paid" });
   } catch (error) {

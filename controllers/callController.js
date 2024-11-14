@@ -1,75 +1,56 @@
+// callController.js
 const twilio = require("twilio");
 const client = new twilio(
   process.env.TWILIO_ACCOUNT_SID,
   process.env.TWILIO_AUTH_TOKEN
 );
-
-// Controller to handle call initiation
-exports.makeCall = async (req, res) => {
-  const { applicationId } = req.body;
-  const customerPhoneNumber = "+61455236622 "; // Retrieve from DB based on applicationId
-  console.log('spoke1')
+exports.initiateCall = async (req, res) => {
   try {
+    const customerNumber = "+15005550007"; // Test successful call
+    const supportNumber = "+15005550008"; // Test successful call
+
+    // Start the call
     const call = await client.calls.create({
-      url: `${process.env.SERVER_URL}/api/call/ivr-welcome`, // URL to TwiML instructions
-      to: customerPhoneNumber,
+      twiml: `<Response><Dial>${supportNumber}</Dial></Response>`,
+      to: customerNumber,
       from: process.env.TWILIO_PHONE_NUMBER,
     });
-    console.log('spoke2')
-    res.send({ status: "call initiated", callSid: call.sid });
+
+    console.log("Call initiated:", call.sid);
+
+    // Function to poll for call status
+    const pollCallStatus = async (callSid) => {
+      try {
+        const callDetails = await client.calls(callSid).fetch();
+        console.log(
+          `Current Status: ${callDetails.status}, Duration: ${
+            callDetails.duration || "In Progress"
+          } seconds`
+        );
+
+        if (callDetails.status === "completed") {
+          console.log(
+            `Call completed. Total duration: ${callDetails.duration} seconds`
+          );
+        } else if (callDetails.status === "failed") {
+          console.log("Call failed or was canceled.");
+        } else {
+          setTimeout(() => pollCallStatus(callSid), 2000);
+        }
+      } catch (error) {
+        console.error("Error fetching call details:", error);
+      }
+    };
+
+    // Start polling
+    pollCallStatus(call.sid);
+
+    // Respond immediately, while the call is being tracked
+    res
+      .status(200)
+      .json({ message: "Call initiated and being tracked", callSid: call.sid });
   } catch (error) {
-    res.status(500).send({ error: error.message });
-  }
-};
-
-// Controller to handle IVR welcome
-exports.ivrWelcome = (req, res) => {
-  try {
-    const twiml = new client.twiml.VoiceResponse();
-    console.log('spoke3', twiml)
-    twiml.say(
-      "Hello, this is Certified Australia. Press 1 for Certification, or press 0 to cancel."
-    );
-
-    console.log('spoke')
-
-    // Gather user input
-    twiml.gather({
-      action: `${process.env.SERVER_URL}/api/call/handle-ivr-response`,
-      numDigits: 1,
-      timeout: 5,
-    });
-
-    res.type("text/xml");
-    res.send(twiml.toString());
-  } catch (error) {
-    console.log('hello')
-    console.log(error)
-    res.status(500).send({ error: error.message });
-  }
-};
-
-// Controller to handle IVR response
-exports.handleIvrResponse = (req, res) => {
-  try {
-    const digits = req.body.Digits;
-    const twiml = new client.twiml.VoiceResponse();
-
-    if (digits === "1") {
-      // Forward call to another person for certification
-      twiml.dial(process.env.ACTUAL_PERSON_PHONE_NUMBER); // Person who will handle certifications
-    } else if (digits === "0") {
-      // Hang up the call and respond with call rejected
-      twiml.say("You have chosen to cancel. Goodbye.");
-      twiml.hangup();
-    } else {
-      // Invalid input, replay the message
-      twiml.redirect(`${process.env.SERVER_URL}/api/ivr-welcome`);
-    }
-
-    res.type("text/xml");
-    res.send(twiml.toString());
-  } catch (error) {
-    res.status(500).send({ error: error.message });
+    console.error("Error initiating call:", error);
+    res.status(400).json({ message: "Failed to initiate call", error });
   }
 };

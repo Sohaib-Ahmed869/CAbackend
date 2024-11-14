@@ -152,9 +152,12 @@ const registerUser = async (req, res) => {
       id: documentsFormRef.id,
     });
 
+    const generateAppID = "APP" + Math.floor(1000 + Math.random() * 9000);
+
     // Step 5: Create an application document linking all forms
     const applicationRef = await db.collection("applications").add({
       id: null,
+      applicationId: generateAppID,
       userId: newUser.uid,
       initialFormId: initialFormRef.id,
       studentFormId: studentFormRef.id,
@@ -162,14 +165,14 @@ const registerUser = async (req, res) => {
       certificateId: null,
       status: [
         {
-          statusname: "Waiting for Verification",
+          statusname: "Student Intake Form",
           time: new Date().toISOString(),
         },
       ],
-      verified: false,
+      verified: true,
       paid: false,
       documents: {},
-      currentStatus: "Waiting for Verification",
+      currentStatus: "Student Intake Form",
       type: type,
       price: price,
     });
@@ -187,7 +190,7 @@ const registerUser = async (req, res) => {
     const emailBody = `
     <h2 style="color: #2c3e50;">🎉 Welcome to Our Platform, ${firstName} ${lastName}! 🎉</h2>
 
-    <p>We are thrilled to have you join our community! 🥳 Your registration has been successfully completed, and your application is currently waiting for verification.</p>
+    <p>We are thrilled to have you join our community! 🥳 Your registration has been successfully completed, and you can visit your dashboard to complete the payment.</p>
 
     <p>Please click the button below to access your application:</p>
     <a href="${loginUrl}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Make Payment</a>
@@ -420,14 +423,14 @@ const registerUserbyAgent = async (req, res) => {
       certificateId: null,
       status: [
         {
-          statusname: "Waiting for Verification",
+          statusname: "Student Intake Form",
           time: new Date().toISOString(),
         },
       ],
       verified: false,
       paid: false,
       documents: {},
-      currentStatus: "Waiting for Verification",
+      currentStatus: "Student Intake Form",
       type: type,
       price: price,
       agentId: agentId,
