@@ -223,7 +223,7 @@ const verifyApplication = async (req, res) => {
       await stripe.invoices.finalizeInvoice(invoice.id);
 
       const token = await auth.createCustomToken(userId);
-      const loginUrl = `https://certifiedaustralia.vercel.app/existing-applications?token=${token}`;
+      const loginUrl = `${process.env.CLIENT_URL}/existing-applications?token=${token}`;
 
       const emailSubject = "Your Application Has Been Verified!";
       const emailBody = `

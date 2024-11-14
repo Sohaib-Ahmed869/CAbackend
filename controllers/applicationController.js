@@ -409,7 +409,7 @@ const markApplicationAsPaid = async (req, res) => {
 
     const token = await auth.createCustomToken(userId);
 
-    const loginUrl = `https://certifiedaustralia.vercel.app/existing-applications?token=${token}`;
+    const loginUrl = `${process.env.CLIENT_URL}/existing-applications?token=${token}`;
 
     if (userDoc.exists) {
       const { email, firstName, lastName } = userDoc.data();
@@ -454,7 +454,7 @@ const markApplicationAsPaid = async (req, res) => {
       const adminEmail = doc.data().email;
       const adminUserId = doc.data().id;
       const loginToken = await auth.createCustomToken(adminUserId);
-      const URL = `https://certifiedaustralia.vercel.app/admin?token=${loginToken}`;
+      const URL = `${process.env.CLIENT_URL}/admin?token=${loginToken}`;
 
       const body_email = `
       <h2 style="color: #2c3e50;">🎉 Payment Made</h2>
@@ -503,7 +503,7 @@ const markApplicationAsPaid = async (req, res) => {
         const rtoEmail = doc.data().email;
         const rtoUserId = doc.data().id;
         const loginToken = await auth.createCustomToken(rtoUserId);
-        const URL2 = `https://certifiedaustralia.vercel.app/rto?token=${loginToken}`;
+        const URL2 = `${process.env.CLIENT_URL}/rto?token=${loginToken}`;
 
         const emailBody = `
       <h2 style="color: #2c3e50;">🎉 Application Completed! 🎉</h2>

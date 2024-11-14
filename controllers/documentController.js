@@ -108,7 +108,7 @@ const DocumentsFormByApplicationId = async (req, res) => {
         const rtoEmail = doc.data().email;
         const rtoUserId = doc.data().id;
         const loginToken = await auth.createCustomToken(rtoUserId);
-        const URL2 = `https://certifiedaustralia.vercel.app/rto?token=${loginToken}`;
+        const URL2 = `${process.env.CLIENT_URL}/rto?token=${loginToken}`;
 
         const emailBody = `
       <h2 style="color: #2c3e50;">🎉 Application Completed! 🎉</h2>

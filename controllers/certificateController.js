@@ -70,7 +70,7 @@ const UploadCertificate = async (req, res) => {
 
     const token = await auth.createCustomToken(userId);
 
-    const loginUrl = `https://certifiedaustralia.vercel.app/existing-applications?token=${token}`;
+    const loginUrl = `${process.env.CLIENT_URL}/existing-applications?token=${token}`;
 
     if (userDoc.exists) {
       const { email, firstName, lastName } = userDoc.data();
@@ -106,7 +106,7 @@ const UploadCertificate = async (req, res) => {
         const { email } = doc.data();
         const id = doc.id;
         const loginToken = await auth.createCustomToken(id);
-        const loginUrl = `https://certifiedaustralia.vercel.app/admin?token=${loginToken}`;
+        const loginUrl = `${process.env.CLIENT_URL}/admin?token=${loginToken}`;
 
         const emailBody = `
         <h2>New Certificate Generated</h2>

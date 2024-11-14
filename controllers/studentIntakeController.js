@@ -105,7 +105,7 @@ const StudentIntakeFormByApplicationId = async (req, res) => {
 
     const token = await auth.createCustomToken(userId);
 
-    const loginUrl = `https://certifiedaustralia.vercel.app/existing-applications?token=${token}`;
+    const loginUrl = `${process.env.CLIENT_URL}/existing-applications?token=${token}`;
 
     if (userDoc.exists) {
       const { email, firstName, lastName } = userDoc.data();

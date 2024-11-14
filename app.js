@@ -24,6 +24,7 @@ app.use(
       "https://certifiedaustralia.vercel.app",
       "http://localhost:5173",
       "https://certifiedaustralia.com.au/",
+      "https://d1vc0n6bphgxql.cloudfront.net/",
     ],
   })
 );
