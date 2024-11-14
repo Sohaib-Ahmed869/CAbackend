@@ -25,6 +25,7 @@ app.use(
       "http://localhost:5173",
       "https://certifiedaustralia.com.au/",
       "https://d1vc0n6bphgxql.cloudfront.net/",
+      "http://certified-australia-bucket.s3-website-ap-southeast-2.amazonaws.com/"
     ],
   })
 );
