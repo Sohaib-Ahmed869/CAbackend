@@ -6,7 +6,6 @@ const getApplications = async (req, res) => {
 
     const applications = snapshot.docs.map((doc) => ({
       ...doc.data(),
-      applicationId: doc.id,
     }));
 
     //get the initial screening form data and add to applications
@@ -32,6 +31,21 @@ const getApplications = async (req, res) => {
     applications.forEach((application) => {
       const user = users.find((user) => user.id === application.userId);
       application.user = user;
+    });
+
+    //get student intake form data and add to applications
+    const studentIntakeFormsSnapshot = await db
+      .collection("studentIntakeForms")
+      .get();
+    const studentIntakeForms = studentIntakeFormsSnapshot.docs.map((doc) =>
+      doc.data()
+    );
+
+    applications.forEach((application) => {
+      const studentIntakeForm = studentIntakeForms.find(
+        (form) => form.id === application.studentIntakeFormId
+      );
+      application.sif = studentIntakeForm;
     });
 
     //get all documents and add to applications
