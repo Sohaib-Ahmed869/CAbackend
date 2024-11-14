@@ -43,7 +43,7 @@ const getApplications = async (req, res) => {
 
     applications.forEach((application) => {
       const studentIntakeForm = studentIntakeForms.find(
-        (form) => form.id === application.studentIntakeFormId
+        (form) => form.id === application.studentFormId
       );
       application.sif = studentIntakeForm;
     });
