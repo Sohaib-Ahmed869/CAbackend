@@ -20,13 +20,7 @@ const app = express();
 app.use(express.json());
 app.use(
   cors({
-    origin: [
-      "https://certifiedaustralia.vercel.app",
-      "http://localhost:5173",
-      "https://certifiedaustralia.com.au/",
-      "https://d1vc0n6bphgxql.cloudfront.net/",
-      "http://certified-australia-bucket.s3-website-ap-southeast-2.amazonaws.com/"
-    ],
+    origin: "*",
   })
 );
 app.use("/api/users", userRoutes);
