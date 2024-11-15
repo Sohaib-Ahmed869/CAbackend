@@ -150,4 +150,5 @@ const getDashboardStats = async (req, res) => {
   }
 };
 
+
 module.exports = { getApplications, registerRTO, getDashboardStats };

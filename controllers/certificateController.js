@@ -90,7 +90,7 @@ const UploadCertificate = async (req, res) => {
     Website: <a href="https://www.certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">www.certifiedaustralia.com.au</a>
     </p>
       `;
-      const emailSubject = "Certificate Generated";
+      const emailSubject = "Certificate Issued";
       await sendEmail(email, emailBody, emailSubject);
     }
 
@@ -99,6 +99,7 @@ const UploadCertificate = async (req, res) => {
       const adminSnapshot = await db
         .collection("users")
         .where("role", "==", "admin")
+        .where("type", "==", "general")
         .get();
 
       //send email to admin
@@ -109,8 +110,8 @@ const UploadCertificate = async (req, res) => {
         const loginUrl = `${process.env.CLIENT_URL}/admin?token=${loginToken}`;
 
         const emailBody = `
-        <h2>New Certificate Generated</h2>
-        <p>A new certificate has been generated for the user.
+        <h2>Certificate Issued</h2>
+        <p>A new certificate has been issued for the user.
         You can view it by clicking on the link below:</p>
         <a href="${loginUrl}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">View Certificate</a>
         <p>For more details, please visit your dashboard.</p>
@@ -118,7 +119,7 @@ const UploadCertificate = async (req, res) => {
         <p>Certified Australia</p>
         `;
 
-        const emailSubject = "Certificate Generated";
+        const emailSubject = "Certificate Issued";
         await sendEmail(email, emailBody, emailSubject);
       });
     }
@@ -130,4 +131,57 @@ const UploadCertificate = async (req, res) => {
   }
 };
 
-module.exports = { UploadCertificate };
+const requestMoreDocuments = async (req, res) => {
+  try {
+    const { applicationId } = req.params;
+    const {message } = req.body;
+    const applicationRef = db.collection("applications").doc(applicationId);
+    const applicationDoc = await applicationRef.get();
+
+    if (!applicationDoc.exists) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+    const { userId } = applicationDoc.data();
+
+    const userRef = db.collection("users").doc(userId);
+    const userDoc = await userRef.get();
+
+    if (!userDoc.exists) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+
+    // set the application status to "Upload Documents"
+    await applicationRef.update({
+      currentStatus: "Upload Documents",
+      status: [
+        ...applicationDoc.data().status,
+        {
+          statusname: "Upload Documents",
+          time: new Date().toISOString(),
+        },
+      ],
+    });
+
+    // Send email notification to the user
+    const { email, firstName, lastName } = userDoc.data();
+    const emailBody = `
+    <h2>Dear ${firstName} ${lastName},</h2>
+    <p>Your application requires additional documents for further processing. Please upload the requested documents using the link below:</p>
+    <p>Message from RTO: ${message}</p>
+    <a href="${process.env.CLIENT_URL}/existing-applications" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Upload Documents</a>
+    <p>Thank you for your cooperation.</p>
+    <p>Regards,</p>
+    <p>RTO Team</p>
+    `;
+    const emailSubject = "Additional Documents Required";
+    await sendEmail(email, emailBody, emailSubject);
+
+    res.status(200).json({ message: "Request sent successfully" });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = { UploadCertificate, requestMoreDocuments };

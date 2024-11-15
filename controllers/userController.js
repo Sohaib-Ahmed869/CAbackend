@@ -188,10 +188,16 @@ const registerUser = async (req, res) => {
     const loginUrl = `${process.env.CLIENT_URL}/existing-applications?token=${token}`;
 
     const emailBody = `
-    <h2 style="color: #2c3e50;">🎉 Welcome to Our Platform, ${firstName} ${lastName}! 🎉</h2>
+    <h2 style="color: #2c3e50;">🎉 Welcome to Certified Australia, ${firstName} ${lastName}! 🎉</h2>
 
     <p>We are thrilled to have you join our community! 🥳 Your registration has been successfully completed, and you can visit your dashboard to complete the payment.</p>
 
+    <strong>Your application Details:</strong>
+    <ul>
+    <li><strong>Application ID:</strong> ${generateAppID}</li>
+    <li><strong>Price:</strong> $${price}</li>
+    <li><strong>Applied for:</strong> ${lookingForWhatQualification}</li>
+    </ul>
     <p>Please click the button below to access your application:</p>
     <a href="${loginUrl}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Make Payment</a>
 
@@ -231,6 +237,7 @@ const registerUser = async (req, res) => {
     const admin = await db
       .collection("users")
       .where("role", "==", "admin")
+      .where("type", "==", "general")
       .get();
     admin.forEach(async (doc) => {
       const adminUserId = doc.data().id;
@@ -450,16 +457,20 @@ const registerUserbyAgent = async (req, res) => {
 
     console.log(newUser.uid);
 
-    const emailBody = `<h2 style="color: #2c3e50;">🎉 Welcome to Our Platform, {{firstName}} {{lastName}}! 🎉</h2>
+    const emailBody = `<h2 style="color: #2c3e50;">🎉 Welcome to Certified Australia, {{firstName}} {{lastName}}! 🎉</h2>
 
-<p>Dear <strong>{{firstName}} {{lastName}}</strong>,</p>
 
 <p>We're delighted to welcome you to our platform! 😊 Your registration, completed via our trusted agent, has been successful. Your application is now under review with the status <strong style="color: #3498db;">"Waiting for Verification" 🔍</strong>.</p>
 
 <p style="font-size: 1.1em; color: #34495e;">
 We appreciate the confidence you have placed in us, and we are committed to supporting you on this journey. Our team is ready to help you achieve your goals and make the most of the opportunities available. 🚀
 </p>
-
+<strong>Your application Details:</strong>
+    <ul>
+    <li><strong>Application ID:</strong> ${generateAppID}</li>
+    <li><strong>Price:</strong> $${price}</li>
+    <li><strong>Applied for:</strong> ${lookingForWhatQualification}</li>
+    </ul>
 <p style="margin-top: 20px; font-style: italic;">
 For any inquiries or assistance, please feel free to <a href="mailto:info@certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">reach out to our support team 📧</a>.
 </p>
@@ -479,6 +490,7 @@ For any inquiries or assistance, please feel free to <a href="mailto:info@certif
     const admin = await db
       .collection("users")
       .where("role", "==", "admin")
+      .where("type", "==", "general")
       .get();
     admin.forEach(async (doc) => {
       const adminEmail = doc.data().email;
@@ -546,13 +558,14 @@ For any inquiries or assistance, please feel free to <a href="mailto:info@certif
       <h2 style="color: #2c3e50;">🎉 New User Registration! 🎉</h2>
 
       <p style="color: #34495e;">Hello Agent,</p>
-      <p>A new user has registered on the platform. Please review the application and verify the user.</p>
+      <p>A new user has registered on the platform. Please review the application to complete it now.</p>
       <strong>Application Details:</strong>
       <ul>
       <li>First Name: ${firstName}</li>
       <li>Last Name: ${lastName}</li>
       <li>Email: ${email}</li>
       <li>Phone: ${phone}</li>
+      <li>Price: $${price}</li>
       </ul>
       
       <strong>Best Regards,</strong><br>

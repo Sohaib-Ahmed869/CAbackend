@@ -392,6 +392,7 @@ const markApplicationAsPaid = async (req, res) => {
   try {
     const applicationRef = db.collection("applications").doc(applicationId);
     const applicationDoc = await applicationRef.get();
+
     if (!applicationDoc.exists)
       return res.status(404).json({ message: "Application not found" });
 
@@ -406,6 +407,17 @@ const markApplicationAsPaid = async (req, res) => {
     const { userId } = applicationDoc.data();
     const userRef = db.collection("users").doc(userId);
     const userDoc = await userRef.get();
+    const currentStatus = applicationDoc.data().currentStatus;
+
+    let ButtonText = "";
+
+    if (currentStatus === "Student Intake Form") {
+      ButtonText = "Fill Student Intake Form";
+    } else if (currentStatus === "Sent to RTO") {
+      ButtonText = "View Application";
+    } else if (currentStatus === "Waiting for Documents") {
+      ButtonText = "Upload Documents";
+    }
 
     const token = await auth.createCustomToken(userId);
 
@@ -423,16 +435,15 @@ const markApplicationAsPaid = async (req, res) => {
         
         <p>We are delighted to inform you that your payment has been successfully received and confirmed.</p>
         
-        <p>Your application has now progressed to the <strong>"Student Intake Form"</strong> stage. At this step, we kindly request you to complete the necessary information in the intake form to proceed further.</p>
-        
-        <h3>Next Steps: Complete the Student Intake Form</h3>
+
+        <h3>Next Steps</h3>
         <ul>
           <li>Log in to your account on our platform.</li>
           <li>Navigate to the <strong>Existing Applications</strong> section in your dashboard.</li>
-          <li>Fill in all required details accurately to ensure a smooth application process.</li>
+          <li>View your application and proceed with the next steps.</li>
         </ul>
 
-        <a href="${loginUrl}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Upload Documents</a>
+        <a href="${loginUrl}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">${ButtonText}</a>
       
         
         <p>If you have any questions or need support with the form, feel free to contact our support team. We're here to assist you every step of the way!</p>
@@ -497,7 +508,10 @@ const markApplicationAsPaid = async (req, res) => {
     //   }
     // }
 
-    if (applicationDoc.data().currentStatus === "Sent to RTO") {
+    if (
+      applicationDoc.data().currentStatus === "Sent to RTO" &&
+      applicationDoc.data().paid === true
+    ) {
       const rto = await db.collection("users").where("role", "==", "rto").get();
       rto.forEach(async (doc) => {
         const rtoEmail = doc.data().email;
@@ -509,7 +523,14 @@ const markApplicationAsPaid = async (req, res) => {
       <h2 style="color: #2c3e50;">🎉 Application Completed! 🎉</h2>
       <p style="color: #34495e;">Hello RTO,</p>
       <p>A user has completed their application</p>
-      <p>Click the button below to view the application:</p>
+      <strong>Application Details:</strong>
+      <ul>
+        <li>Application ID: ${applicationDoc.applicationId}</li>
+        <li>Application Type: ${applicationDoc.data().type}</li>
+        <li>Price: ${applicationDoc.data().price}</li>
+        <li>Application Date: ${new Date().toISOString()}</li>
+      </ul>
+      <p>Click the button below to view their application, and upload the certificate:</p>
       <a href="${URL2}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Upload Certificate</a>
       <p style="font-style: italic;">For more details, please visit the rto dashboard.</p>
       <p>Thank you for your attention.</p>

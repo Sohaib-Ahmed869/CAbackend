@@ -49,6 +49,7 @@ router.put(
 
 router.put(
   "/StudentIntakeFormByApplicationId/:applicationId",
+  upload.single("previousQualifications"),
   StudentIntakeFormByApplicationId
 );
 router.put(

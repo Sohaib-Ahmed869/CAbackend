@@ -4,7 +4,10 @@ const upload = require("../utils/multerconfig");
 const router = express.Router();
 const { authenticateUser } = require("../middleware/authMiddleware");
 const { allowRoles } = require("../middleware/roleMiddleware");
-const { UploadCertificate } = require("../controllers/certificateController");
+const {
+  UploadCertificate,
+  requestMoreDocuments,
+} = require("../controllers/certificateController");
 
 const {
   getUserApplications,
@@ -22,6 +25,8 @@ router.put(
   upload.single("certificate"),
   UploadCertificate
 );
+router.put("/requestMoreDocuments/:applicationId", requestMoreDocuments);
+
 router.post("/payment/:applicationId", customerPayment);
 router.put("/markAsPaid/:applicationId", markApplicationAsPaid);
 module.exports = router;
