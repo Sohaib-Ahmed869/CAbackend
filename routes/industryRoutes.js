@@ -10,9 +10,13 @@ const {
   addCertificationToIndustry,
   removeCertificationFromIndustry,
   deleteCertification,
+  addMultipleIndustries,
+  addMultipleCertifications
 } = require("../controllers/industryController");
 
 router.post("/create", createIndustry);
+router.post("/create-multiple", addMultipleIndustries);
+router.post("/certification/create-multiple", addMultipleCertifications);
 router.get("/", getIndustries);
 router.put("/:id", updateIndustry);
 router.delete("/:id", deleteIndustry);

@@ -204,6 +204,13 @@ const registerUser = async (req, res) => {
     <p style="font-style: italic;">
     If you have any questions or need assistance, please don't hesitate to <a href="mailto:info@certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">contact us 📧</a>.
     </p>
+
+    <strong>Why Choose RPL with Certified Australia?</strong>
+
+    <ul>
+    <li><strong>Save Time And Money</strong> Achieve recognition for your existing skills without unnecessary training.</li>
+    <li><strong>Career Advancement</strong> Strengthen your professional profile and meet industry standards.</li>
+    <li><strong>Personalised Support:</strong> Our dedicated team will assist you through every step of the process.</li>
     
     <p style="margin-top:10px; margin-bottom:10px">-------------------------------------------------------------------------</p>
 
@@ -427,7 +434,7 @@ const registerUserbyAgent = async (req, res) => {
           time: new Date().toISOString(),
         },
       ],
-      verified: false,
+      verified: true,
       paid: false,
       documents: {},
       currentStatus: "Student Intake Form",

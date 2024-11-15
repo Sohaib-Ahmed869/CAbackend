@@ -21,10 +21,22 @@ exports.createIndustry = async (req, res) => {
 exports.getIndustries = async (req, res) => {
   try {
     const snapshot = await db.collection("industries").get();
+
+    const certificationsSnapshot = await db.collection("certifications").get();
     const industries = snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
+      certifications: certificationsSnapshot.docs.map((cert) => {
+        if (cert.data().industryId === doc.id) return cert.data();
+      }),
     }));
+
+    //clear the nulls in certifications
+    industries.forEach((industry) => {
+      industry.certifications = industry.certifications.filter(
+        (cert) => cert !== undefined
+      );
+    });
     res.send({ industries });
   } catch (error) {
     res.status(500).send({ error: error.message });
@@ -73,15 +85,6 @@ exports.addCertificationToIndustry = async (req, res) => {
       type,
     });
 
-    await db
-      .collection("industries")
-      .doc(industryId)
-      .update({
-        certifications: FieldValue.arrayUnion({
-          id: certification.id,
-          ...req.body,
-        }),
-      });
     res.send({
       status: "certification added to industry",
       id: certification.id,
@@ -97,13 +100,6 @@ exports.removeCertificationFromIndustry = async (req, res) => {
   const { industryId, certificationId } = req.body;
 
   try {
-    await db
-      .collection("industries")
-      .doc(industryId)
-      .update({
-        certifications: FieldValue.arrayRemove(certificationId),
-      });
-
     await db.collection("certifications").doc(certificationId).delete();
 
     res.send({ status: "certification removed from industry" });
@@ -133,6 +129,31 @@ exports.deleteCertification = async (req, res) => {
     });
 
     res.send({ status: "certification deleted" });
+  } catch (error) {
+    res.status(500).send({ error: error.message });
+  }
+};
+
+exports.addMultipleIndustries = async (req, res) => {
+  const industries = req.body;
+  try {
+    industries.forEach(async (industry) => {
+      await db.collection("industries").add(industry);
+    });
+    res.send({ status: "industries added" });
+  } catch (error) {
+    res.status(500).send({ error: error.message });
+  }
+};
+
+exports.addMultipleCertifications = async (req, res) => {
+  const certifications = req.body;
+  try {
+    certifications.forEach(async (certification) => {
+      await db.collection("certifications").add(certification);
+    });
+
+    res.send({ status: "certifications added" });
   } catch (error) {
     res.status(500).send({ error: error.message });
   }

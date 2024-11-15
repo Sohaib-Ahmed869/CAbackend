@@ -200,14 +200,14 @@ const createNewApplication = async (req, res) => {
       certificateId: null,
       status: [
         {
-          statusname: "Waiting for Payment",
+          statusname: "Student Intake Form",
           time: new Date().toISOString(),
         },
       ],
       verified: true,
       paid: false,
       documents: {},
-      currentStatus: "Waiting for Payment",
+      currentStatus: "Student Intake Form",
       type: type,
       price: price,
     });
@@ -306,14 +306,14 @@ const createNewApplicationByAgent = async (req, res) => {
       certificateId: null,
       status: [
         {
-          status: "Waiting for Verification",
+          status: "Student Intake Form",
           time: new Date().toISOString(),
         },
       ],
-      verified: false,
+      verified: true,
       paid: false,
       documents: {},
-      currentStatus: "Waiting for Verification",
+      currentStatus: "Student Intake Form",
       type: type,
       price: price,
       agentId: agentId,
