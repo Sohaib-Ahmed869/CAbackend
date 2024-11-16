@@ -2,6 +2,9 @@ const { db, auth } = require("../firebase");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const { sendEmail } = require("../utils/emailUtil");
 const bcrypt = require("bcrypt");
+const NodeCache = require("node-cache");
+const cache = new NodeCache({ stdTTL: 60 }); // Cache TTL of 60 seconds
+
 // Admin Login
 const adminLogin = async (req, res) => {
   const { email, password } = req.body;
@@ -91,65 +94,58 @@ const verifyCustomer = async (req, res) => {
 
 const getApplications = async (req, res) => {
   try {
-    const snapshot = await db.collection("applications").get();
+    const cachedApplications = cache.get("applications");
+    if (cachedApplications) {
+      return res.status(200).json(cachedApplications); // Serve from cache
+    }
 
-    const applications = snapshot.docs.map((doc) => ({
-      ...doc.data(),
-    }));
+    const [
+      applicationsSnapshot,
+      initialScreeningFormsSnapshot,
+      documentsFormsSnapshot,
+      studentIntakeFormsSnapshot,
+      usersSnapshot,
+    ] = await Promise.all([
+      db.collection("applications").get(),
+      db.collection("initialScreeningForms").get(),
+      db.collection("documents").get(),
+      db.collection("studentIntakeForms").get(),
+      db.collection("users").get(),
+    ]);
 
-    //get the initial screening form data and add to applications
-    const initialScreeningFormsSnapshot = await db
-      .collection("initialScreeningForms")
-      .get();
-    const initialScreeningForms = initialScreeningFormsSnapshot.docs.map(
-      (doc) => doc.data()
-    );
-
-    applications.forEach((application) => {
-      //get the document id which matches application.initialFormId form.id === application.applicationId
-      const initialScreeningForm = initialScreeningForms.find(
-        (form) => form.id === application.initialFormId
-      );
-      application.isf = initialScreeningForm;
+    const initialScreeningForms = {};
+    initialScreeningFormsSnapshot.docs.forEach((doc) => {
+      initialScreeningForms[doc.id] = doc.data();
     });
 
-    //get the documents form data and add to applications
-    const documentsFormsSnapshot = await db.collection("documents").get();
-    const documentsForms = documentsFormsSnapshot.docs.map((doc) => doc.data());
-
-    applications.forEach((application) => {
-      //get the document id which matches application.documentsFormId form.id === application.applicationId
-      const documentsForm = documentsForms.find(
-        (form) => form.id === application.documentsFormId
-      );
-      application.document = documentsForm;
+    const documentsForms = {};
+    documentsFormsSnapshot.docs.forEach((doc) => {
+      documentsForms[doc.id] = doc.data();
     });
 
-    //get the student intake form data and add to applications
-    const studentIntakeFormsSnapshot = await db
-      .collection("studentIntakeForms")
-      .get();
-    const studentIntakeForms = studentIntakeFormsSnapshot.docs.map((doc) =>
-      doc.data()
-    );
-
-    applications.forEach((application) => {
-      //get the document id which matches application.studentIntakeFormId form.id === application.applicationId
-      const studentIntakeForm = studentIntakeForms.find(
-        (form) => form.id === application.studentFormId
-      );
-      application.sif = studentIntakeForm;
+    const studentIntakeForms = {};
+    studentIntakeFormsSnapshot.docs.forEach((doc) => {
+      studentIntakeForms[doc.id] = doc.data();
     });
 
-    //get user data and add to applications
-    const usersSnapshot = await db.collection("users").get();
-    const users = usersSnapshot.docs.map((doc) => doc.data());
-
-    applications.forEach((application) => {
-      const user = users.find((user) => user.id === application.userId);
-      application.user = user;
+    const users = {};
+    usersSnapshot.docs.forEach((doc) => {
+      users[doc.id] = doc.data();
     });
 
+    const applications = applicationsSnapshot.docs.map((doc) => {
+      const application = doc.data();
+
+      return {
+        ...application,
+        isf: initialScreeningForms[application.initialFormId] || null,
+        document: documentsForms[application.documentsFormId] || null,
+        sif: studentIntakeForms[application.studentFormId] || null,
+        user: users[application.userId] || null,
+      };
+    });
+
+    cache.set("applications", applications); // Store results in cache
     res.status(200).json(applications);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -298,63 +294,48 @@ const markApplicationAsPaid = async (req, res) => {
 };
 
 const getDashboardStats = async (req, res) => {
-  let stats = {
-    totalApplications: 0,
-    totalCustomers: 0,
-    totalAgents: 0,
-    verifiedApplications: 0,
-    verifiedCustomers: 0,
-    paidApplications: 0,
-    rtoApplications: 0,
-  };
-
   try {
-    const applicationsSnapshot = await db.collection("applications").get();
-    stats.totalApplications = applicationsSnapshot.size;
+    const [
+      applicationsSnapshot,
+      customersSnapshot,
+      agentsSnapshot,
+      verifiedApplicationsSnapshot,
+      verifiedCustomersSnapshot,
+      paidApplicationsSnapshot,
+      rtoApplicationsSnapshot,
+    ] = await Promise.all([
+      db.collection("applications").get(),
+      db.collection("users").where("role", "==", "customer").get(),
+      db.collection("users").where("role", "==", "agent").get(),
+      db.collection("applications").where("verified", "==", true).get(),
+      db
+        .collection("users")
+        .where("role", "==", "customer")
+        .where("verified", "==", true)
+        .get(),
+      db.collection("applications").where("paid", "==", true).get(),
+      db
+        .collection("applications")
+        .where("currentStatus", "==", "Sent to RTO")
+        .get(),
+    ]);
 
-    const customersSnapshot = await db
-      .collection("users")
-      .where("role", "==", "customer")
-      .get();
-    stats.totalCustomers = customersSnapshot.size;
-
-    const agentsSnapshot = await db
-      .collection("users")
-      .where("role", "==", "agent")
-      .get();
-    stats.totalAgents = agentsSnapshot.size;
-
-    const verifiedApplicationsSnapshot = await db
-      .collection("applications")
-      .where("verified", "==", true)
-      .get();
-    stats.verifiedApplications = verifiedApplicationsSnapshot.size;
-
-    const verifiedCustomersSnapshot = await db
-      .collection("users")
-      .where("role", "==", "customer")
-      .where("verified", "==", true)
-      .get();
-    stats.verifiedCustomers = verifiedCustomersSnapshot.size;
-
-    const paidApplicationsSnapshot = await db
-      .collection("applications")
-      .where("paid", "==", true)
-      .get();
-    stats.paidApplications = paidApplicationsSnapshot.size;
-
-    const rtoApplicationsSnapshot = await db
-      .collection("applications")
-      .where("currentStatus", "==", "Sent to RTO")
-      .get();
-
-    stats.rtoApplications = rtoApplicationsSnapshot.size;
+    const stats = {
+      totalApplications: applicationsSnapshot.size,
+      totalCustomers: customersSnapshot.size,
+      totalAgents: agentsSnapshot.size,
+      verifiedApplications: verifiedApplicationsSnapshot.size,
+      verifiedCustomers: verifiedCustomersSnapshot.size,
+      paidApplications: paidApplicationsSnapshot.size,
+      rtoApplications: rtoApplicationsSnapshot.size,
+    };
 
     res.status(200).json(stats);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
+
 
 module.exports = {
   adminLogin,

@@ -8,6 +8,8 @@ const DocumentsFormByApplicationId = async (req, res) => {
   console.log(req.files);
   console.log(req.body);
 
+  const { applicationIndustry } = req.body;
+
   const documentFiles = req.files;
 
   try {
@@ -89,26 +91,66 @@ const DocumentsFormByApplicationId = async (req, res) => {
     const userDoc = await userRef.get();
     if (userDoc.exists) {
       const { email, firstName, lastName } = userDoc.data();
-      const emailBody = `...`; // Email content (same as original code)
+      const emailBody = ` <h2 style="color: #2c3e50;">🎉 Application Completed! 🎉</h2>
+      <p style="color: #34495e;">Hello ${firstName} ${lastName},</p>
+      <p>Your documents have been successfully uploaded.</p>
+      <p style="font-style: italic;">Please wait while we verify your documents.</p>
+      <p>Thank you for your attention.</p>
+      <p>
+    <strong>Best Regards,</strong><br>
+    The Certified Australia Team<br>
+    Email: <a href="mailto:info@certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">info@certifiedaustralia.com.au</a><br>
+    Phone: <a href="tel:1300044927" style="color: #3498db; text-decoration: none;">1300 044 927</a><br>
+    Website: <a href="https://www.certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">www.certifiedaustralia.com.au</a>
+    </p>`; // Email content (same as original code)
       const emailSubject = "Documents Sent for Verification";
       await sendEmail(email, emailBody, emailSubject);
     }
 
+    // Batch email sending for RTOs
     if (applicationDoc.data().paid) {
-      const rto = await db.collection("users").where("role", "==", "rto").get();
-      const rtoEmailsPromises = rto.docs.map(async (doc) => {
+      const rtoSnapshot = await db
+        .collection("users")
+        .where("role", "==", "rto")
+        .get();
+      const batchEmails = [];
+
+      rtoSnapshot.forEach((doc) => {
         const rtoEmail = doc.data().email;
         const rtoUserId = doc.data().id;
-        const loginToken = await auth.createCustomToken(rtoUserId);
+        const loginToken = auth.createCustomToken(rtoUserId); // Token creation doesn't need to be awaited
         const URL2 = `${process.env.CLIENT_URL}/rto?token=${loginToken}`;
 
-        const emailBody = `...`; // RTO Email content (same as original code)
+        const emailBody = `
+          <h2 style="color: #2c3e50;">🎉 Application Completed! 🎉</h2>
+          <p style="color: #34495e;">Hello RTO,</p>
+          <p>A user has completed their application.</p>
+          <p>Click the button below to view the application:</p>
+          <a href="${URL2}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Upload Certificate</a>
+          <p style="font-style: italic;">For more details, please visit the RTO dashboard.</p>
+          <p>Thank you for your attention.</p>
+          <p>
+            <strong>Best Regards,</strong><br>
+            The Certified Australia Team<br>
+            Email: <a href="mailto:info@certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">info@certifiedaustralia.com.au</a><br>
+            Phone: <a href="tel:1300044927" style="color: #3498db; text-decoration: none;">1300 044 927</a><br>
+            Website: <a href="https://www.certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">www.certifiedaustralia.com.au</a>
+          </p>`;
         const emailSubject = "Application Submitted";
 
-        await sendEmail(rtoEmail, emailBody, emailSubject);
+        // Push email details into batch
+        batchEmails.push({
+          to: rtoEmail,
+          subject: emailSubject,
+          body: emailBody,
+        });
       });
 
-      await Promise.all(rtoEmailsPromises);
+      // Send all emails in a batch
+      const emailBatchPromises = batchEmails.map((email) =>
+        sendEmail(email.to, email.body, email.subject)
+      );
+      await Promise.all(emailBatchPromises);
     }
 
     res.status(200).json({

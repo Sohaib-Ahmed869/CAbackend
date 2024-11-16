@@ -43,6 +43,12 @@ router.put(
     { name: "reference2", maxCount: 1 },
     { name: "employmentLetter", maxCount: 1 },
     { name: "payslip", maxCount: 1 },
+    { name: "image1", maxCount: 1 },
+    { name: "image2", maxCount: 1 },
+    { name: "image3", maxCount: 1 },
+    { name: "image4", maxCount: 1 },
+    { name: "video1", maxCount: 1 },
+    { name: "video2", maxCount: 1 },
   ]),
   DocumentsFormByApplicationId
 );

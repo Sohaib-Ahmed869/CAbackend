@@ -2,6 +2,8 @@
 const { db, auth } = require("../firebase");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const { sendEmail } = require("../utils/emailUtil");
+const NodeCache = require("node-cache");
+const cache = new NodeCache({ stdTTL: 10 });
 // Update Application Status
 const updateApplicationStatus = async (req, res) => {
   const { applicationId } = req.params;
@@ -29,63 +31,82 @@ const getUserApplications = async (req, res) => {
   const { userId } = req.params;
 
   try {
-    // Step 1: Query the 'applications' collection for documents with matching userId
-    const applicationsRef = db.collection("applications");
-    const snapshot = await applicationsRef.where("userId", "==", userId).get();
+    // Check if data is already in the cache
+    const cachedApplications = cache.get(`userApplications:${userId}`);
+    if (cachedApplications) {
+      return res.status(200).json({ applications: cachedApplications });
+    }
 
-    // Step 2: Check if any applications exist
-    if (snapshot.empty) {
+    // Step 1: Fetch user applications
+    const applicationsSnapshot = await db
+      .collection("applications")
+      .where("userId", "==", userId)
+      .get();
+
+    if (applicationsSnapshot.empty) {
       return res
         .status(404)
         .json({ message: "No applications found for this user" });
     }
 
-    // Step 3: Map over the snapshot to get the applications and fetch related forms
-    const applications = await Promise.all(
-      snapshot.docs.map(async (doc) => {
-        const applicationData = doc.data();
+    // Step 2: Collect all form IDs from applications
+    const applicationDocs = applicationsSnapshot.docs.map((doc) => doc.data());
+    const initialFormIds = applicationDocs
+      .map((app) => app.initialFormId)
+      .filter(Boolean);
+    const studentFormIds = applicationDocs
+      .map((app) => app.studentFormId)
+      .filter(Boolean);
+    const documentsFormIds = applicationDocs
+      .map((app) => app.documentsFormId)
+      .filter(Boolean);
 
-        console.log(applicationData);
+    // Step 3: Fetch all related forms in parallel
+    const [
+      initialFormsSnapshot,
+      studentFormsSnapshot,
+      documentsFormsSnapshot,
+    ] = await Promise.all([
+      db
+        .collection("initialScreeningForms")
+        .where("__name__", "in", initialFormIds)
+        .get(),
+      db
+        .collection("studentIntakeForms")
+        .where("__name__", "in", studentFormIds)
+        .get(),
+      db
+        .collection("documents")
+        .where("__name__", "in", documentsFormIds)
+        .get(),
+    ]);
 
-        // Fetch initial screening form data if exists
-        const initialFormData = applicationData.initialFormId
-          ? (
-              await db
-                .collection("initialScreeningForms")
-                .doc(applicationData.initialFormId)
-                .get()
-            ).data()
-          : null;
+    // Step 4: Map forms to their IDs for quick lookups
+    const initialFormsMap = {};
+    initialFormsSnapshot.docs.forEach((doc) => {
+      initialFormsMap[doc.id] = doc.data();
+    });
 
-        // Fetch student intake form data if exists
-        const studentFormData = applicationData.studentFormId
-          ? (
-              await db
-                .collection("studentIntakeForms")
-                .doc(applicationData.studentFormId)
-                .get()
-            ).data()
-          : null;
+    const studentFormsMap = {};
+    studentFormsSnapshot.docs.forEach((doc) => {
+      studentFormsMap[doc.id] = doc.data();
+    });
 
-        // Fetch documents form data if exists
-        const documentsFormData = applicationData.documentsFormId
-          ? (
-              await db
-                .collection("documents")
-                .doc(applicationData.documentsFormId)
-                .get()
-            ).data()
-          : null;
+    const documentsFormsMap = {};
+    documentsFormsSnapshot.docs.forEach((doc) => {
+      documentsFormsMap[doc.id] = doc.data();
+    });
 
-        return {
-          id: doc.id,
-          ...applicationData,
-          initialForm: initialFormData,
-          studentForm: studentFormData,
-          documentsForm: documentsFormData,
-        };
-      })
-    );
+    // Step 5: Enrich applications with related forms
+    const applications = applicationDocs.map((app) => ({
+      ...app,
+      initialForm: initialFormsMap[app.initialFormId] || null,
+      studentForm: studentFormsMap[app.studentFormId] || null,
+      documentsForm: documentsFormsMap[app.documentsFormId] || null,
+    }));
+
+    // Store the result in cache
+    cache.set(`userApplications:${userId}`, applications);
 
     res.status(200).json({ applications });
   } catch (error) {
@@ -409,15 +430,6 @@ const markApplicationAsPaid = async (req, res) => {
     const userDoc = await userRef.get();
     const currentStatus = applicationDoc.data().currentStatus;
 
-    let ButtonText = "";
-
-    if (currentStatus === "Student Intake Form") {
-      ButtonText = "Fill Student Intake Form";
-    } else if (currentStatus === "Sent to RTO") {
-      ButtonText = "View Application";
-    } else if (currentStatus === "Waiting for Documents") {
-      ButtonText = "Upload Documents";
-    }
 
     const token = await auth.createCustomToken(userId);
 
@@ -443,7 +455,7 @@ const markApplicationAsPaid = async (req, res) => {
           <li>View your application and proceed with the next steps.</li>
         </ul>
 
-        <a href="${loginUrl}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">${ButtonText}</a>
+        <a href="${loginUrl}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">View Application</a>
       
         
         <p>If you have any questions or need support with the form, feel free to contact our support team. We're here to assist you every step of the way!</p>
