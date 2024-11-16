@@ -17,11 +17,11 @@ const callRoutes = require("./routes/callRoutes");
 const industryRoutes = require("./routes/industryRoutes");
 
 const app = express();
-
-app.use(express.json({ limit: '50mb' }));
+app.use(express());
+app.use(express.json({ limit: "50mb" }));
 app.use(
   cors({
-    origin: "https://portal.certifiedaustralia.com.au", 
+    origin: "https://portal.certifiedaustralia.com.au",
   })
 );
 app.use("/api/users", userRoutes);
