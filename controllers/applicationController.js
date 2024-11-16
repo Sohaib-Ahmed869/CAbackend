@@ -521,8 +521,7 @@ const markApplicationAsPaid = async (req, res) => {
     // }
 
     if (
-      applicationDoc.data().currentStatus === "Sent to RTO" &&
-      applicationDoc.data().paid === true
+      applicationDoc.data().currentStatus === "Sent to RTO"
     ) {
       const rto = await db.collection("users").where("role", "==", "rto").get();
       rto.forEach(async (doc) => {
