@@ -18,7 +18,7 @@ const industryRoutes = require("./routes/industryRoutes");
 
 const app = express();
 app.use(express());
-app.use(express.json({ limit: "50mb" }));
+app.use(express.json({ limit: "350mb" }));
 app.use(
   cors({
     origin: "https://portal.certifiedaustralia.com.au",
