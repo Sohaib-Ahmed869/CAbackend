@@ -21,7 +21,7 @@ const app = express();
 app.use(express.json({ limit: '50mb' }));
 app.use(
   cors({
-    origin: "*",
+    origin: "https://portal.certifiedaustralia.com.au", 
   })
 );
 app.use("/api/users", userRoutes);
