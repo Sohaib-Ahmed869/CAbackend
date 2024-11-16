@@ -1,66 +1,59 @@
 const { db, auth } = require("../firebase");
-
+const NodeCache = require("node-cache");
+const cache = new NodeCache({ stdTTL: 20 });
 const getApplications = async (req, res) => {
   try {
-    const snapshot = await db.collection("applications").get();
+    const cachedApplications = cache.get("applications");
+    if (cachedApplications) {
+      return res.status(200).json(cachedApplications);
+    }
 
-    const applications = snapshot.docs.map((doc) => ({
-      ...doc.data(),
+    // Fetch applications and related data in parallel
+    const [
+      applicationsSnapshot,
+      initialScreeningFormsSnapshot,
+      usersSnapshot,
+      studentIntakeFormsSnapshot,
+      documentsSnapshot,
+    ] = await Promise.all([
+      db.collection("applications").get(),
+      db.collection("initialScreeningForms").get(),
+      db.collection("users").get(),
+      db.collection("studentIntakeForms").get(),
+      db.collection("documents").get(),
+    ]);
+
+    const applications = applicationsSnapshot.docs.map((doc) => doc.data());
+
+    // Create maps for quick lookups
+    const initialScreeningForms = Object.fromEntries(
+      initialScreeningFormsSnapshot.docs.map((doc) => [doc.id, doc.data()])
+    );
+    const users = Object.fromEntries(
+      usersSnapshot.docs.map((doc) => [doc.id, doc.data()])
+    );
+    const studentIntakeForms = Object.fromEntries(
+      studentIntakeFormsSnapshot.docs.map((doc) => [doc.id, doc.data()])
+    );
+    const documents = Object.fromEntries(
+      documentsSnapshot.docs.map((doc) => [doc.id, doc.data()])
+    );
+
+    // Enrich applications with related data
+    const enrichedApplications = applications.map((application) => ({
+      ...application,
+      isf: initialScreeningForms[application.initialFormId] || null,
+      user: users[application.userId] || null,
+      sif: studentIntakeForms[application.studentFormId] || null,
+      document: documents[application.documentsFormId] || null,
     }));
 
-    //get the initial screening form data and add to applications
-    const initialScreeningFormsSnapshot = await db
-      .collection("initialScreeningForms")
-      .get();
-    const initialScreeningForms = initialScreeningFormsSnapshot.docs.map(
-      (doc) => doc.data()
-    );
+    // Cache the enriched applications
+    cache.set("applications", enrichedApplications);
 
-    applications.forEach((application) => {
-      //get the document id which matches application.initialFormId form.id === application.applicationId
-      const initialScreeningForm = initialScreeningForms.find(
-        (form) => form.id === application.initialFormId
-      );
-      application.isf = initialScreeningForm;
-    });
-
-    //get user data and add to applications
-    const usersSnapshot = await db.collection("users").get();
-    const users = usersSnapshot.docs.map((doc) => doc.data());
-
-    applications.forEach((application) => {
-      const user = users.find((user) => user.id === application.userId);
-      application.user = user;
-    });
-
-    //get student intake form data and add to applications
-    const studentIntakeFormsSnapshot = await db
-      .collection("studentIntakeForms")
-      .get();
-    const studentIntakeForms = studentIntakeFormsSnapshot.docs.map((doc) =>
-      doc.data()
-    );
-
-    applications.forEach((application) => {
-      const studentIntakeForm = studentIntakeForms.find(
-        (form) => form.id === application.studentFormId
-      );
-      application.sif = studentIntakeForm;
-    });
-
-    //get all documents and add to applications
-    const documentsSnapshot = await db.collection("documents").get();
-    const documents = documentsSnapshot.docs.map((doc) => doc.data());
-
-    applications.forEach((application) => {
-      const document = documents.find(
-        (document) => document.id === application.documentsFormId
-      );
-      application.document = document;
-    });
-
-    res.status(200).json(applications);
+    res.status(200).json(enrichedApplications);
   } catch (error) {
+    console.log(error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -86,6 +79,11 @@ const registerRTO = async (req, res) => {
 };
 
 const getDashboardStats = async (req, res) => {
+  const cachedStats = cache.get("dashboardStats");
+  if (cachedStats) {
+    return res.status(200).json(cachedStats);
+  }
+
   let stats = {
     totalApplications: 0,
     applicationsPending: 0,
@@ -97,51 +95,43 @@ const getDashboardStats = async (req, res) => {
   };
 
   try {
-    const applicationsSnapshot = await db.collection("applications").get();
+    // Fetch all applications and RTO users in parallel
+    const [applicationsSnapshot, rtoSnapshot] = await Promise.all([
+      db.collection("applications").get(),
+      db.collection("users").where("role", "==", "rto").get(),
+    ]);
+
     const applications = applicationsSnapshot.docs.map((doc) => doc.data());
-
     stats.totalApplications = applications.length;
-
-    stats.applicationsPending = applications.filter(
-      (application) => application.currentStatus === "Sent to RTO"
-    ).length;
-    stats.applicationsCompleted = applications.filter(
-      (application) => application.currentStatus === "Certificate Generated"
-    ).length;
-    stats.rejectedApplications = applications.filter(
-      (application) => application.currentStatus === "Rejected by RTO"
-    ).length;
-
-    const rtoSnapshot = await db
-      .collection("users")
-      .where("role", "==", "rto")
-      .get();
     stats.totalRTOs = rtoSnapshot.docs.length;
 
-    applications.map((application) => {
-      let time = application.status[application.status.length - 1].time;
-      let date = new Date(time);
-      console.log(date);
+    // Process applications for various statuses
+    applications.forEach((application) => {
+      if (application.currentStatus === "Sent to RTO") {
+        stats.applicationsPending++;
+      } else if (application.currentStatus === "Certificate Generated") {
+        stats.applicationsCompleted++;
+
+        const completionDate = new Date(
+          application.status[application.status.length - 1].time
+        );
+        const now = new Date();
+        const oneWeekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+        const oneMonthAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);
+
+        if (completionDate >= oneWeekAgo) {
+          stats.applicationsCompletedInLastWeek++;
+        }
+        if (completionDate >= oneMonthAgo) {
+          stats.applicationsCompletedInLastMonth++;
+        }
+      } else if (application.currentStatus === "Rejected by RTO") {
+        stats.rejectedApplications++;
+      }
     });
 
-    const applicationsCompletedInLastWeek = applications.filter(
-      (application) =>
-        application.currentStatus === "Certificate Generated" &&
-        new Date(application.status[application.status.length - 1].time) >=
-          new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-    );
-    stats.applicationsCompletedInLastWeek =
-      applicationsCompletedInLastWeek.length;
-
-    const applicationsCompletedInLastMonth = applications.filter(
-      (application) =>
-        application.currentStatus === "Certificate Generated" &&
-        new Date(application.status[application.status.length - 1].time) >=
-          new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-    );
-
-    stats.applicationsCompletedInLastMonth =
-      applicationsCompletedInLastMonth.length;
+    // Cache the computed stats
+    cache.set("dashboardStats", stats);
 
     res.status(200).json(stats);
   } catch (error) {
@@ -149,6 +139,5 @@ const getDashboardStats = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-
 
 module.exports = { getApplications, registerRTO, getDashboardStats };

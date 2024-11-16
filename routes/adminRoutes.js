@@ -10,6 +10,7 @@ const {
   verifyApplication,
   markApplicationAsPaid,
   getDashboardStats,
+  addNoteToApplication
 } = require("../controllers/adminController");
 
 const router = express.Router();
@@ -22,5 +23,6 @@ router.get("/applications", getApplications);
 router.put("/verifyApplication/:applicationId", verifyApplication);
 router.put("/markApplicationAsPaid/:applicationId", markApplicationAsPaid);
 router.get("/dashboardStats", getDashboardStats);
+router.put("/addNoteToApplication/:applicationId", addNoteToApplication);
 
 module.exports = router;

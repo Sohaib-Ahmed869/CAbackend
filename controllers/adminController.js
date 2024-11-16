@@ -336,6 +336,30 @@ const getDashboardStats = async (req, res) => {
   }
 };
 
+const addNoteToApplication = async (req, res) => {
+  const { applicationId } = req.params;
+  const { note } = req.body;
+
+  try {
+    const applicationRef = db.collection("applications").doc(applicationId);
+    const applicationDoc = await applicationRef.get();
+
+    if (!applicationDoc.exists) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+
+    await applicationRef.update({
+      note: note,
+    });
+
+    //delete the cache
+    cache.del("applications");
+
+    res.status(200).json({ message: "Note added successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
 
 module.exports = {
   adminLogin,
@@ -346,4 +370,5 @@ module.exports = {
   verifyApplication,
   markApplicationAsPaid,
   getDashboardStats,
+  addNoteToApplication,
 };

@@ -1,12 +1,16 @@
 const { db, bucket, auth } = require("../firebase");
 const { v4: uuidv4 } = require("uuid");
 const { sendEmail } = require("../utils/emailUtil");
+const NodeCache = require("node-cache");
+const cache = new NodeCache({ stdTTL: 20 });
 
 const express = require("express");
 const app = express();
 
 const UploadCertificate = async (req, res) => {
+  
   try {
+    cache.del("applications");
     const { applicationId } = req.params;
 
     console.log("Received file:", req.file); // For `multer`
