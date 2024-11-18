@@ -1,0 +1,34 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v2
+
+    - name: Install SSH Key
+      env:
+        SSH_KEY: ${{ secrets.CA }}
+      run: |
+        echo "$SSH_KEY" > ssh_key
+        chmod 600 ssh_key
+
+    - name: Deploy to EC2
+      env:
+        EC2_HOST: ${{ secrets.EC2_HOST }}
+        EC2_USER: ${{ secrets.EC2_USER }}
+        APP_DIR: ${{ secrets.APP_DIR }}
+      run: |
+        ssh -i ssh_key -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST << 'EOF'
+        cd $APP_DIR
+        git pull
+        pm2 restart 0
+        pm2 restart env
+        EOF
