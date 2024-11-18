@@ -34,5 +34,9 @@ app.use("/api/agent", agentRoutes);
 app.use("/api/call", callRoutes);
 app.use("/api/industry", industryRoutes);
 
+app.get("/", (req, res) => {
+  res.send("Certified Australia is running");
+});
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
