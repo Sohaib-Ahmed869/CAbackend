@@ -14,7 +14,7 @@ const transporter = nodemailer.createTransport({
 const sendEmail = async (recipientEmail, emailBody, emailSubject) => {
   try {
     const mailOptions = {
-      from: process.env.EMAIL_USER, // Sender's email address
+      from: `"Certified Australia" <${process.env.EMAIL_USER}>`,
       to: recipientEmail, // Recipient's email address
       subject: emailSubject, // Subject of the email
       text: emailBody, // Plain text body
