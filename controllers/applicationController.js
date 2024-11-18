@@ -62,24 +62,21 @@ const getUserApplications = async (req, res) => {
       .filter(Boolean);
 
     // Step 3: Fetch all related forms in parallel
-    const [
-      initialFormsSnapshot,
-      studentFormsSnapshot,
-      documentsFormsSnapshot,
-    ] = await Promise.all([
-      db
-        .collection("initialScreeningForms")
-        .where("__name__", "in", initialFormIds)
-        .get(),
-      db
-        .collection("studentIntakeForms")
-        .where("__name__", "in", studentFormIds)
-        .get(),
-      db
-        .collection("documents")
-        .where("__name__", "in", documentsFormIds)
-        .get(),
-    ]);
+    const [initialFormsSnapshot, studentFormsSnapshot, documentsFormsSnapshot] =
+      await Promise.all([
+        db
+          .collection("initialScreeningForms")
+          .where("__name__", "in", initialFormIds)
+          .get(),
+        db
+          .collection("studentIntakeForms")
+          .where("__name__", "in", studentFormIds)
+          .get(),
+        db
+          .collection("documents")
+          .where("__name__", "in", documentsFormIds)
+          .get(),
+      ]);
 
     // Step 4: Map forms to their IDs for quick lookups
     const initialFormsMap = {};
@@ -430,7 +427,6 @@ const markApplicationAsPaid = async (req, res) => {
     const userDoc = await userRef.get();
     const currentStatus = applicationDoc.data().currentStatus;
 
-
     const token = await auth.createCustomToken(userId);
 
     const loginUrl = `${process.env.CLIENT_URL}/existing-applications?token=${token}`;
@@ -485,7 +481,7 @@ const markApplicationAsPaid = async (req, res) => {
       <a href="${URL}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">View Application</a>
       `;
       const subject = "New Payment Processed";
-      await sendEmail(adminEmail, body_email, subject);
+      
     });
 
     // if(applicationDoc.data().agentId){
@@ -520,9 +516,7 @@ const markApplicationAsPaid = async (req, res) => {
     //   }
     // }
 
-    if (
-      applicationDoc.data().currentStatus === "Sent to RTO"
-    ) {
+    if (applicationDoc.data().currentStatus === "Sent to RTO") {
       const rto = await db.collection("users").where("role", "==", "rto").get();
       rto.forEach(async (doc) => {
         const rtoEmail = doc.data().email;

@@ -164,12 +164,12 @@ const registerUser = async (req, res) => {
     const emailBody = `
     <h2 style="color: #2c3e50;">🎉 Welcome to Certified Australia, ${firstName} ${lastName}! 🎉</h2>
 
-    <p>We are thrilled to have you join our community! 🥳 Your registration has been successfully completed, and you can visit your dashboard to complete the payment.</p>
+    <p>We are thrilled to see you taking this huge step in your career! 🥳 Your registration has been successfully completed, and you can visit your dashboard to complete the payment.</p>
 
     <strong>Your application Details:</strong>
     <ul>
     <li><strong>Application ID:</strong> ${generateAppID}</li>
-    <li><strong>Price:</strong> $${price}</li>
+    <li><strong>Cost:</strong> $${price}</li>
     <li><strong>Applied for:</strong> ${lookingForWhatQualification}</li>
     </ul>
     <p>Please click the button below to access your application:</p>
@@ -477,7 +477,9 @@ For any inquiries or assistance, please feel free to <a href="mailto:info@certif
     </p>
       `;
       const subject = "New User Registration";
-      await sendEmail(adminEmail, body_email, subject);
+      if (adminEmail !== "ceo@certifiedaustralia.com.au") {
+        await sendEmail(adminEmail, body_email, subject);
+      }
     });
 
     const rto = await db.collection("users").where("role", "==", "rto").get();

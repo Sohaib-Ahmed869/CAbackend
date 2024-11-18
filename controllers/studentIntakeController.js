@@ -115,7 +115,7 @@ const StudentIntakeFormByApplicationId = async (req, res) => {
   
   <p>Thank you for completing and submitting your Student Intake Form. We have successfully received the details you provided, and your application has moved to the next stage.</p>
   
-  <h3>Next Steps: Document Upload</h3>
+  <h3>Next Steps: Evidence Submission</h3>
   <p>To proceed with your application, please upload the necessary documents using the link below:</p>
   <h4>Documents Required:</h4>
   <ul>
