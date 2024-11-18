@@ -35,7 +35,7 @@ app.use("/api/call", callRoutes);
 app.use("/api/industry", industryRoutes);
 
 app.get("/", (req, res) => {
-  res.send("Certified Australia is running now");
+  res.send("Certified Australia is running now again");
 });
 
 const PORT = process.env.PORT || 5000;
