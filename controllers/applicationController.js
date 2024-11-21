@@ -469,19 +469,37 @@ const markApplicationAsPaid = async (req, res) => {
       .collection("users")
       .where("role", "==", "admin")
       .get();
-    admin.forEach(async (doc) => {
-      const adminEmail = doc.data().email;
-      const adminUserId = doc.data().id;
-      const loginToken = await auth.createCustomToken(adminUserId);
-      const URL = `${process.env.CLIENT_URL}/admin?token=${loginToken}`;
+    admin.forEach(async (adminDoc) => {
+      const adminData = adminDoc.data();
+      const adminEmail = adminData.email;
+      const adminUserId = adminData.id;
 
-      const body_email = `
-      <h2 style="color: #2c3e50;">🎉 Payment Made</h2>
-      <p style="color: #2c3e50;">The user ${firstNameG} ${lastNameG} has made the payment for the application</p>
-      <a href="${URL}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">View Application</a>
+      const adminToken = await auth.createCustomToken(adminUserId);
+      const adminUrl = `${process.env.CLIENT_URL}/admin?token=${adminToken}`;
+
+      const adminEmailBody = `
+        <h2 style="color: #2c3e50;">🎉 Payment Processed</h2>
+        <p style="color: #2c3e50;">A payment has been made by ${firstNameG} ${lastNameG}.</p>
+        <p><strong>Application Details:</strong></p>
+        <ul>
+          <li>Application ID: ${applicationDoc.id}</li>
+          <li>Application Type: ${applicationDoc.data().type}</li>
+          <li>Price: ${applicationDoc.data().price}</li>
+        </ul>
+        <p>Click below to view the application:</p>
+        <a href="${adminUrl}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">View Application</a>
       `;
-      const subject = "New Payment Processed";
-      
+
+      const adminEmailSubject = "Payment Processed";
+
+      try {
+        await sendEmail(adminEmail, adminEmailBody, adminEmailSubject);
+        console.log(`Email sent to admin: ${adminEmail}`);
+      } catch (err) {
+        console.error(
+          `Failed to send email to admin: ${adminEmail}. Error: ${err.message}`
+        );
+      }
     });
 
     // if(applicationDoc.data().agentId){

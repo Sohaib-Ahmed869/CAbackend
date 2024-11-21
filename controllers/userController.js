@@ -191,7 +191,22 @@ const registerUser = async (req, res) => {
     <li><strong>Save Time And Money</strong> Achieve recognition for your existing skills without unnecessary training.</li>
     <li><strong>Career Advancement</strong> Strengthen your professional profile and meet industry standards.</li>
     <li><strong>Personalised Support:</strong> Our dedicated team will assist you through every step of the process.</li>
-    
+    </ul>
+
+    <p style="margin-top:10px; margin-bottom:10px">-------------------------------------------------------------------------</p>
+    <strong>Documents that will be needed</strong>
+    <ul>
+    <li>100 Points ID (Passport, Drivers Licence, Medicare)</li>
+    <li>Contact Information</li>
+    <li>Residential Address</li>
+    <li>Place of Birth</li>
+    <li>Copy of Visa</li>
+    <li>USI Number</li>
+    <li>Photo Evidence of you onsite (in case of trades,construction and automotive)</li>
+    <li>Video Evidence of you onsite (incase of trades, construction and automotive)</li>
+    <li>Reference Letter</li>
+    <li>Restume</li>
+    </ul>
     <p style="margin-top:10px; margin-bottom:10px">-------------------------------------------------------------------------</p>
 
   

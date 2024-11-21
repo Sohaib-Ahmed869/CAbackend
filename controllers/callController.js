@@ -19,16 +19,25 @@ exports.initiateCall = async (req, res) => {
 
     console.log("User phone number:", customerNumber);
 
-    const supportNumber = "++61415171890"; // Test successful call
+    const supportNumber = "+61415171890"; // Test successful call
 
     // Start the call
     const call = await client.calls.create({
       twiml: `
-        <Response>
-          <Say>Hello, this is certified Australia. Our agent wants to connect with you. Please hold.</Say>
-          <Dial>${supportNumber}</Dial>
-        </Response>
-      `,
+      <Response>
+        <Gather numDigits="1">
+          <Say>
+            Hi, and welcome to certified Australia, where we convert your industry experience and skills into a nationally recognized qualification.
+            Ready to get qualified? Press 1.
+            Can't decide which qualification is suitable for you or you're looking for more information on how RPL works? Press 2.
+            If you're an existing student and tracking the progress of your application with Certified Australia, press 3.
+            For anything else, press 4.
+          </Say>
+        </Gather>
+        <Say>Connecting you to support now.</Say>
+        <Dial>${supportNumber}</Dial>
+      </Response>
+    `,
       to: customerNumber,
       from: process.env.TWILIO_PHONE_NUMBER,
     });
