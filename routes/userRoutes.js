@@ -7,6 +7,8 @@ const {
   registerUser,
   verifyUser,
   registerUserbyAgent,
+  changeEmail,
+  changePhoneNumber,
 } = require("../controllers/userController");
 const {
   updateApplicationStatus,
@@ -25,7 +27,8 @@ const router = express.Router();
 
 router.post("/register", registerUser);
 router.post("/registerByAgent", registerUserbyAgent);
-router.put("/verify/:userId", verifyUser);
+router.put("/phonenumber/:userId", changePhoneNumber);
+router.put("/email/:userId", changeEmail);
 router.put("/updateApplicationStatus/:applicationId", updateApplicationStatus);
 router.put(
   "/documentUpload/:applicationId",

@@ -3,7 +3,7 @@ const { db, auth } = require("../firebase");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const { sendEmail } = require("../utils/emailUtil");
 const NodeCache = require("node-cache");
-const cache = new NodeCache({ stdTTL: 10 });
+const cache = new NodeCache({ stdTTL: 3 });
 // Update Application Status
 const updateApplicationStatus = async (req, res) => {
   const { applicationId } = req.params;
@@ -410,7 +410,6 @@ const markApplicationAsPaid = async (req, res) => {
   try {
     const applicationRef = db.collection("applications").doc(applicationId);
     const applicationDoc = await applicationRef.get();
-
     if (!applicationDoc.exists)
       return res.status(404).json({ message: "Application not found" });
 
@@ -418,9 +417,10 @@ const markApplicationAsPaid = async (req, res) => {
       paid: true,
     });
 
+    const { price } = applicationDoc.data();
     let firstNameG = "";
     let lastNameG = "";
-
+    let finalPrice = price.replace(",", "");
     // Fetch user email and send a notification
     const { userId } = applicationDoc.data();
     const userRef = db.collection("users").doc(userId);
@@ -431,6 +431,27 @@ const markApplicationAsPaid = async (req, res) => {
 
     const loginUrl = `${process.env.CLIENT_URL}/existing-applications?token=${token}`;
 
+    // Create a customer on Stripe
+    const customer = await stripe.customers.create({
+      email: email,
+      name: `${firstNameG} ${lastNameG}`,
+    });
+
+    await stripe.invoiceItems.create({
+      customer: customer.id,
+      amount: finalPrice,
+      currency: "aud",
+      description: "Application Processing Fee",
+    });
+
+    // Create the invoice
+    const invoice = await stripe.invoices.create({
+      customer: customer.id,
+      auto_advance: false, // Auto-finalizes the invoice
+    });
+
+    const finalizedInvoice = await stripe.invoices.finalizeInvoice(invoice.id);
+    await stripe.invoices.finalizeInvoice(invoice.id);
     if (userDoc.exists) {
       const { email, firstName, lastName } = userDoc.data();
 
@@ -450,7 +471,7 @@ const markApplicationAsPaid = async (req, res) => {
           <li>Navigate to the <strong>Existing Applications</strong> section in your dashboard.</li>
           <li>View your application and proceed with the next steps.</li>
         </ul>
-
+        <p>You can view and pay your invoice here: <a href="${finalizedInvoice.hosted_invoice_url}">Pay Invoice</a></p>
         <a href="${loginUrl}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">View Application</a>
       
         
@@ -465,6 +486,13 @@ const markApplicationAsPaid = async (req, res) => {
       await sendEmail(email, emailBody, emailSubject);
     }
 
+    const initialFormId = applicationDoc.data().initialFormId;
+    const initialFormsSnapshot = await db
+      .collection("initialScreeningForms")
+      .doc(initialFormId)
+      .get();
+
+    const { lookingForWhatQualification } = initialFormsSnapshot.data();
     const admin = await db
       .collection("users")
       .where("role", "==", "admin")
@@ -485,6 +513,7 @@ const markApplicationAsPaid = async (req, res) => {
           <li>Application ID: ${applicationDoc.id}</li>
           <li>Application Type: ${applicationDoc.data().type}</li>
           <li>Price: ${applicationDoc.data().price}</li>
+          <li>Qualification Name: ${lookingForWhatQualification}</li>
         </ul>
         <p>Click below to view the application:</p>
         <a href="${adminUrl}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">View Application</a>
@@ -578,6 +607,60 @@ const markApplicationAsPaid = async (req, res) => {
   }
 };
 
+const deleteApplication = async (req, res) => {
+  const { applicationId } = req.params;
+
+  try {
+    // Step 1: Get the application document
+    const applicationRef = db.collection("applications").doc(applicationId);
+    const applicationDoc = await applicationRef.get();
+
+    if (!applicationDoc.exists) {
+      return res.status(500).json({ message: "Appli cation not found" });
+    }
+
+    const { initialFormId, studentFormId, documentsFormId } =
+      applicationDoc.data();
+
+    // Step 2: Delete connected forms
+    const deletePromises = [];
+
+    if (initialFormId) {
+      const initialFormRef = db
+        .collection("initialScreeningForms")
+        .doc(initialFormId);
+      deletePromises.push(initialFormRef.delete());
+    }
+
+    if (studentFormId) {
+      const studentFormRef = db
+        .collection("studentIntakeForms")
+        .doc(studentFormId);
+      deletePromises.push(studentFormRef.delete());
+    }
+
+    if (documentsFormId) {
+      const documentsFormRef = db.collection("documents").doc(documentsFormId);
+      deletePromises.push(documentsFormRef.delete());
+    }
+
+    // Step 3: Delete the application
+    deletePromises.push(applicationRef.delete());
+
+    // Wait for all deletions to complete
+    await Promise.all(deletePromises);
+
+    res.status(200).json({
+      message: "Application and connected forms deleted successfully",
+    });
+  } catch (error) {
+    console.error("Error deleting application:", error.message);
+    res
+      .status(500)
+      .json({ message: "Error deleting application and connected forms" });
+  }
+};
+
 module.exports = {
   getUserApplications,
   createNewApplication,
@@ -585,4 +668,5 @@ module.exports = {
   updateApplicationStatus,
   markApplicationAsPaid,
   createNewApplicationByAgent,
+  deleteApplication,
 };

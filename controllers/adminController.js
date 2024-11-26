@@ -3,7 +3,7 @@ const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const { sendEmail } = require("../utils/emailUtil");
 const bcrypt = require("bcrypt");
 const NodeCache = require("node-cache");
-const cache = new NodeCache({ stdTTL: 60 }); // Cache TTL of 60 seconds
+const cache = new NodeCache({ stdTTL: 3 }); // Cache TTL of 60 seconds
 
 // Admin Login
 const adminLogin = async (req, res) => {
@@ -361,6 +361,80 @@ const addNoteToApplication = async (req, res) => {
   }
 };
 
+// Resend Email to User
+const resendEmail = async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    // Fetch the user's email by userId from the 'users' collection
+    const userRef = db.collection("users").doc(userId);
+    const userDoc = await userRef.get();
+
+    const token = await auth.createCustomToken(userId);
+    const loginUrl = `${process.env.CLIENT_URL}/existing-applications?token=${token}`;
+
+    if (!userDoc.exists) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const { email, firstName, lastName } = userDoc.data();
+
+    // Email content
+    const emailSubject = "Progress Update for Your Application";
+    const emailBody = `
+      <h2>Dear ${firstName} ${lastName},</h2>
+      
+      <p>To view the progress of your application, please visit your <strong>Student Portal</strong>.</p>
+      
+      <a href="${loginUrl}" style="background-color: #3498db; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">
+        Go to Student Portal
+      </a>
+      
+      <p>If you have any questions, please feel free to contact our support team.</p>
+      
+      <p>Best regards,</p>
+      <p><strong>Your Application Team</strong></p>
+    `;
+
+    // Send the email
+    await sendEmail(email, emailBody, emailSubject);
+
+    res.status(200).json({ message: "Email resent successfully" });
+  } catch (error) {
+    console.error("Error resending email:", error);
+    res.status(500).json({ message: "Error resending email" });
+  }
+};
+
+const addColorToApplication = async (req, res) => {
+  const { applicationId } = req.params;
+  const { colorToBeAdded } = req.body;
+
+  try {
+    const applicationRef = db.collection("applications").doc(applicationId);
+    const applicationDoc = await applicationRef.get();
+
+    if (!applicationDoc.exists) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+
+    await applicationRef.update({ color: colorToBeAdded });
+
+    cache.del("applications");
+    res.status(200).json({
+      message: "Color updated successfully",
+      applicationId,
+      color: colorToBeAdded,
+    });
+  } catch (error) {
+    console.error("Error updating application color:", error);
+    res.status(500).json({
+      message: "Failed to update application color",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   adminLogin,
   registerAdmin,
@@ -371,4 +445,6 @@ module.exports = {
   markApplicationAsPaid,
   getDashboardStats,
   addNoteToApplication,
+  resendEmail,
+  addColorToApplication,
 };

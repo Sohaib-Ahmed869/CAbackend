@@ -15,8 +15,10 @@ const {
   customerPayment,
   markApplicationAsPaid,
   createNewApplicationByAgent,
+  deleteApplication,
 } = require("../controllers/applicationController");
 
+router.delete("/deleteApplication/:applicationId", deleteApplication);
 router.post("/new/:userId", createNewApplication);
 router.post("/newByAgent/:userId", createNewApplicationByAgent);
 router.get("/user/:userId", getUserApplications);

@@ -2,6 +2,9 @@
 // controllers/userController.js
 const { db, auth } = require("../firebase");
 const { sendEmail } = require("../utils/emailUtil");
+const NodeCache = require("node-cache");
+const cache = new NodeCache({ stdTTL: 3 }); // Cache TTL of 60 seconds
+
 // Register User
 const registerUser = async (req, res) => {
   const {
@@ -576,7 +579,55 @@ const verifyUser = async (req, res) => {
   }
 };
 
-module.exports = { registerUser, verifyUser, registerUserbyAgent };
+const changeEmail = async (req, res) => {
+  const { userId } = req.params;
+  const { email } = req.body;
+
+  try {
+    // Update email in Firebase Authentication
+    await auth.updateUser(userId, { email });
+
+    // Update email in Firestore
+    await db.collection("users").doc(userId).update({ email });
+    cache.del("applications");
+    res.status(200).json({
+      message:
+        "User email updated successfully in both Firestore and Firebase Auth.",
+    });
+  } catch (error) {
+    console.error("Error updating email:", error);
+    res
+      .status(500)
+      .json({ message: "Error updating email. Please try again later." });
+  }
+};
+
+const changePhoneNumber = async (req, res) => {
+  const { userId } = req.params;
+  const { phone } = req.body;
+
+  try {
+    // Update phone number in Firestore
+    await db.collection("users").doc(userId).update({ phone });
+    cache.del("applications");
+    res.status(200).json({
+      message: "User phone number updated successfully in Firestore.",
+    });
+  } catch (error) {
+    console.error("Error updating phone number:", error);
+    res.status(500).json({
+      message: "Error updating phone number. Please try again later.",
+    });
+  }
+};
+
+module.exports = {
+  changePhoneNumber,
+  changeEmail,
+  registerUser,
+  verifyUser,
+  registerUserbyAgent,
+};
 
 //example post request
 // {

@@ -55,7 +55,7 @@ exports.updateIndustry = async (req, res) => {
     });
     res.send({ status: "industry updated" });
   } catch (error) {
-    console.log(error);
+    console.log("ok");
     res.status(500).send({ error: error.message });
   }
 };
@@ -155,6 +155,38 @@ exports.addMultipleCertifications = async (req, res) => {
 
     res.send({ status: "certifications added" });
   } catch (error) {
+    res.status(500).send({ error: error.message });
+  }
+};
+// Controller to update the price of a certification
+exports.updateCertificationPrice = async (req, res) => {
+  const { newPrice, certificationName } = req.body;
+
+  console.log(certificationName);
+  try {
+    // Fetch the certification document by certification name
+    const certificationsSnapshot = await db
+      .collection("certifications")
+      .where("qualification", "==", certificationName)
+      .get();
+
+    if (certificationsSnapshot.empty) {
+      return res.status(404).json({ message: "Certification not found" });
+    }
+
+    // Update the price field for all matching certifications (if needed for more than one)
+    const batch = db.batch();
+
+    certificationsSnapshot.docs.forEach((doc) => {
+      const certRef = db.collection("certifications").doc(doc.id);
+      batch.update(certRef, { price: newPrice });
+    });
+
+    await batch.commit();
+
+    res.send({ status: "Certification price updated successfully" });
+  } catch (error) {
+    console.error("Error updating certification price:", error);
     res.status(500).send({ error: error.message });
   }
 };
