@@ -208,7 +208,7 @@ const registerUser = async (req, res) => {
     <li>Photo Evidence of you onsite (in case of trades,construction and automotive)</li>
     <li>Video Evidence of you onsite (incase of trades, construction and automotive)</li>
     <li>Reference Letter</li>
-    <li>Restume</li>
+    <li>Resume</li>
     </ul>
     <p style="margin-top:10px; margin-bottom:10px">-------------------------------------------------------------------------</p>
 

@@ -389,13 +389,26 @@ const customerPayment = async (req, res) => {
     const applicationData = doc.data();
     let price = applicationData.price;
 
+    let userId = applicationData.userId;
+
     //remove , from price
     price = price.replace(",", "");
+
+    // Fetch user's email from the 'users' collection
+    const userRef = db.collection("users").doc(userId);
+    const userDoc = await userRef.get();
+    if (!userDoc.exists) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const { email } = userDoc.data(); // Retrieve user's email
 
     //create a payment intent
     const paymentIntent = await stripe.paymentIntents.create({
       amount: price * 100,
       currency: "aud",
+      description: "Application Processing Fee",
+      receipt_email: email
     });
 
     res.status(200).json({ client_secret: paymentIntent.client_secret });
@@ -432,26 +445,26 @@ const markApplicationAsPaid = async (req, res) => {
     const loginUrl = `${process.env.CLIENT_URL}/existing-applications?token=${token}`;
 
     // Create a customer on Stripe
-    const customer = await stripe.customers.create({
-      email: email,
-      name: `${firstNameG} ${lastNameG}`,
-    });
+    // const customer = await stripe.customers.create({
+    //   email: email,
+    //   name: `${firstNameG} ${lastNameG}`,
+    // });
 
-    await stripe.invoiceItems.create({
-      customer: customer.id,
-      amount: finalPrice,
-      currency: "aud",
-      description: "Application Processing Fee",
-    });
+    // await stripe.invoiceItems.create({
+    //   customer: customer.id,
+    //   amount: finalPrice,
+    //   currency: "aud",
+    //   description: "Application Processing Fee",
+    // });
 
-    // Create the invoice
-    const invoice = await stripe.invoices.create({
-      customer: customer.id,
-      auto_advance: false, // Auto-finalizes the invoice
-    });
+    // // Create the invoice
+    // const invoice = await stripe.invoices.create({
+    //   customer: customer.id,
+    //   auto_advance: false, // Auto-finalizes the invoice
+    // });
 
-    const finalizedInvoice = await stripe.invoices.finalizeInvoice(invoice.id);
-    await stripe.invoices.finalizeInvoice(invoice.id);
+    // const finalizedInvoice = await stripe.invoices.finalizeInvoice(invoice.id);
+    // await stripe.invoices.finalizeInvoice(invoice.id);
     if (userDoc.exists) {
       const { email, firstName, lastName } = userDoc.data();
 
@@ -471,7 +484,7 @@ const markApplicationAsPaid = async (req, res) => {
           <li>Navigate to the <strong>Existing Applications</strong> section in your dashboard.</li>
           <li>View your application and proceed with the next steps.</li>
         </ul>
-        <p>You can view and pay your invoice here: <a href="${finalizedInvoice.hosted_invoice_url}">Pay Invoice</a></p>
+      
         <a href="${loginUrl}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">View Application</a>
       
         

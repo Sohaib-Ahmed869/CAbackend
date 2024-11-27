@@ -15,6 +15,7 @@ const {
   updateCertificationPrice,
 } = require("../controllers/industryController");
 
+router.delete("/certification", deleteCertification);
 router.post("/create", createIndustry);
 router.post("/create-multiple", addMultipleIndustries);
 router.post("/certification/create-multiple", addMultipleCertifications);
@@ -27,6 +28,5 @@ router.delete(
   "/:industryId/certification/:certificationId",
   removeCertificationFromIndustry
 );
-router.delete("/certification/:id", deleteCertification);
 
 module.exports = router;

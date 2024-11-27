@@ -392,8 +392,13 @@ const resendEmail = async (req, res) => {
       
       <p>If you have any questions, please feel free to contact our support team.</p>
       
-      <p>Best regards,</p>
-      <p><strong>Your Application Team</strong></p>
+       <p>
+        <strong>Best Regards,</strong><br>
+        The Certified Australia Team<br>
+        Email: <a href="mailto:info@certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">info@certifiedaustralia.com.au</a><br>
+        Phone: <a href="tel:1300044927" style="color: #3498db; text-decoration: none;">1300 044 927</a><br>
+        Website: <a href="https://www.certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">www.certifiedaustralia.com.au</a>
+      </p>
     `;
 
     // Send the email

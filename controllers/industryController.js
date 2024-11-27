@@ -109,27 +109,36 @@ exports.removeCertificationFromIndustry = async (req, res) => {
 };
 
 // controller to delete certification
+// Controller to delete certification by name
 exports.deleteCertification = async (req, res) => {
-  const { id } = req.params;
-
+  const { name } = req.query;
+  console.log(name);
   try {
-    await db.collection("certifications").doc(id).delete();
-    //also delete certification from all industries
-    const industries = await db
-      .collection("industries")
-      .where("certifications", "array-contains", id)
+    // Fetch the certification document by name
+    const certificationsSnapshot = await db
+      .collection("certifications")
+      .where("qualification", "==", name)
       .get();
-    industries.forEach(async (doc) => {
-      await db
-        .collection("industries")
-        .doc(doc.id)
-        .update({
-          certifications: db.FieldValue.arrayRemove(id),
-        });
-    });
 
-    res.send({ status: "certification deleted" });
+    console.log(certificationsSnapshot.docs.map((doc) => doc.qualification));
+
+    if (certificationsSnapshot.empty) {
+      return res.status(404).json({ message: "Certification not found" });
+    }
+
+    // Delete all certifications matching the given name
+    const deletePromises = certificationsSnapshot.docs.map((doc) =>
+      db.collection("certifications").doc(doc.id).delete()
+    );
+
+    await Promise.all(deletePromises);
+
+    res.send({
+      status: "Certification(s) deleted successfully",
+      deletedCertificationName: name,
+    });
   } catch (error) {
+    console.error("Error deleting certification:", error);
     res.status(500).send({ error: error.message });
   }
 };
