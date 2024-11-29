@@ -384,10 +384,10 @@ const resendEmail = async (req, res) => {
     const emailBody = `
       <h2>Dear ${firstName} ${lastName},</h2>
       
-      <p>To view the progress of your application, please visit your <strong>Student Portal</strong>.</p>
+      <p>To view the progress of your application, please visit your <strong>Application Portal</strong>.</p>
       
-      <a href="${loginUrl}" style="background-color: #3498db; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">
-        Go to Student Portal
+      <a href="${loginUrl}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">
+        Go to Application Portal
       </a>
       
       <p>If you have any questions, please feel free to contact our support team.</p>
