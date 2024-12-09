@@ -11,6 +11,8 @@ exports.initiateCall = async (req, res) => {
 
     console.log("Initiating call for user:", UserId);
 
+    const adminUserId = req.body.adminUserId;
+
     //get user phone number from database of firebase
     const userCollection = db.collection("users");
     const userDoc = await userCollection.doc(UserId).get();
@@ -19,7 +21,15 @@ exports.initiateCall = async (req, res) => {
 
     console.log("User phone number:", customerNumber);
 
-    const supportNumber = "+61415171890"; // Test successful call
+    let supportNumber = "";
+
+    if (adminUserId === "ywSW6FPcDqV9d53oXkF0hwrdT102") {
+      supportNumber = "+61415171890"; // Test successful call
+    } else {
+      supportNumber = "+61401337286";
+    }
+
+    console.log("Support phone number:", supportNumber);
 
     // Start the call
     const call = await client.calls.create({

@@ -379,6 +379,7 @@ const createNewApplicationByAgent = async (req, res) => {
 const customerPayment = async (req, res) => {
   const { applicationId } = req.params;
 
+  let { price } = req.body;
   try {
     const applicationRef = db.collection("applications").doc(applicationId);
     const doc = await applicationRef.get();
@@ -387,13 +388,13 @@ const customerPayment = async (req, res) => {
 
     //get price of application
     const applicationData = doc.data();
-    let price = applicationData.price;
 
     let userId = applicationData.userId;
 
     //remove , from price
     price = price.replace(",", "");
 
+    console.log("Price:", price);
     // Fetch user's email from the 'users' collection
     const userRef = db.collection("users").doc(userId);
     const userDoc = await userRef.get();
@@ -405,14 +406,17 @@ const customerPayment = async (req, res) => {
 
     //create a payment intent
     const paymentIntent = await stripe.paymentIntents.create({
+      payment_method_types: ["card"],
       amount: price * 100,
       currency: "aud",
       description: "Application Processing Fee",
-      receipt_email: email
+      receipt_email: email,
     });
 
     res.status(200).json({ client_secret: paymentIntent.client_secret });
   } catch (error) {
+    console.log(error);
+    console.log("error occured here");
     res.status(500).json({ message: error.message });
   }
 };
@@ -426,9 +430,30 @@ const markApplicationAsPaid = async (req, res) => {
     if (!applicationDoc.exists)
       return res.status(404).json({ message: "Application not found" });
 
-    await applicationRef.update({
-      paid: true,
-    });
+    if (
+      applicationDoc.data().paid === true &&
+      applicationDoc.partialScheme === true
+    ) {
+      await applicationRef.update({
+        full_paid: true,
+        amount_paid: applicationDoc.data().price,
+      });
+    } else if (
+      applicationDoc.data().partialScheme === true &&
+      applicationDoc.data().paid === false
+    ) {
+      await applicationRef.update({
+        paid: true,
+        full_paid: false,
+        amount_paid: applicationDoc.data().price,
+      });
+    } else {
+      await applicationRef.update({
+        paid: true,
+        full_paid: true,
+        amount_paid: applicationDoc.data().price,
+      });
+    }
 
     const { price } = applicationDoc.data();
     let firstNameG = "";
@@ -444,27 +469,6 @@ const markApplicationAsPaid = async (req, res) => {
 
     const loginUrl = `${process.env.CLIENT_URL}/existing-applications?token=${token}`;
 
-    // Create a customer on Stripe
-    // const customer = await stripe.customers.create({
-    //   email: email,
-    //   name: `${firstNameG} ${lastNameG}`,
-    // });
-
-    // await stripe.invoiceItems.create({
-    //   customer: customer.id,
-    //   amount: finalPrice,
-    //   currency: "aud",
-    //   description: "Application Processing Fee",
-    // });
-
-    // // Create the invoice
-    // const invoice = await stripe.invoices.create({
-    //   customer: customer.id,
-    //   auto_advance: false, // Auto-finalizes the invoice
-    // });
-
-    // const finalizedInvoice = await stripe.invoices.finalizeInvoice(invoice.id);
-    // await stripe.invoices.finalizeInvoice(invoice.id);
     if (userDoc.exists) {
       const { email, firstName, lastName } = userDoc.data();
 
@@ -544,38 +548,6 @@ const markApplicationAsPaid = async (req, res) => {
       }
     });
 
-    // if(applicationDoc.data().agentId){
-    //   const agentRef = db.collection("users").doc(applicationDoc.data().agentId);
-    //   const agentDoc = await agentRef.get();
-    //   if (agentDoc.exists) {
-    //     const { email, firstName, lastName } = agentDoc.data();
-    //     const emailSubject = "Payment Confirmation and Next Steps";
-    //     const emailBody = `
-    //       <h2>Dear ${firstName} ${lastName},</h2>
-
-    //       <p>We are delighted to inform you that your client ${firstNameG} ${lastNameG} has made the payment for the application.</p>
-
-    //       <p>The application has now progressed to the <strong>"Student Intake Form"</strong> stage. At this step, we kindly request you to guide your client to complete the necessary information in the intake form to proceed further.</p>
-
-    //       <h3>Next Steps: Complete the Student Intake Form</h3>
-    //       <ul>
-    //         <li>Log in to your account on our platform.</li>
-    //         <li>Navigate to the <strong>Existing Applications</strong> section in your dashboard.</li>
-    //         <li>Fill in all required details accurately to ensure a smooth application process.</li>
-    //       </ul>
-
-    //       <p>If you have any questions or need support with the form, feel free to contact our support team. We're here to assist you every step of the way!</p>
-
-    //       <p>Thank you once again for choosing us. We look forward to supporting you on your educational journey.</p>
-
-    //       <p>Warm regards,</p>
-    //       <p><strong>Certified Australia</strong></p>
-    //     `;
-
-    //     await sendEmail(email, emailBody, emailSubject);
-    //   }
-    // }
-
     if (applicationDoc.data().currentStatus === "Sent to RTO") {
       const rto = await db.collection("users").where("role", "==", "rto").get();
       rto.forEach(async (doc) => {
@@ -616,6 +588,7 @@ const markApplicationAsPaid = async (req, res) => {
     res.status(200).json({ message: "Application marked as paid" });
   } catch (error) {
     console.log(error);
+
     res.status(500).json({ message: error.message });
   }
 };
@@ -674,6 +647,34 @@ const deleteApplication = async (req, res) => {
   }
 };
 
+const dividePaymentIntoTwo = async (req, res) => {
+  // Divide the payment into two parts
+  // First part is the initial payment
+  // Second part is the remaining balance
+  // The initial payment is in body
+  // The remaining balance is calculated from the application
+  const { applicationId } = req.params;
+  const { payment1, payment2 } = req.body;
+
+  try {
+    //update the application with the payment details
+    const applicationRef = db.collection("applications").doc(applicationId);
+
+    await applicationRef.update({
+      payment1: payment1,
+      payment2: payment2,
+      partialScheme: true,
+      full_paid: false,
+      amount_paid: 0,
+    });
+
+    res.status(200).json({ message: "Payment divided successfully" });
+  } catch (error) {
+    console.error("Error dividing payment:", error.message);
+    res.status(500).json({ message: "Error dividing payment" });
+  }
+};
+
 module.exports = {
   getUserApplications,
   createNewApplication,
@@ -682,4 +683,5 @@ module.exports = {
   markApplicationAsPaid,
   createNewApplicationByAgent,
   deleteApplication,
+  dividePaymentIntoTwo,
 };

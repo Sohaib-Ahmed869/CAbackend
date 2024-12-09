@@ -16,6 +16,7 @@ const {
   markApplicationAsPaid,
   createNewApplicationByAgent,
   deleteApplication,
+  dividePaymentIntoTwo,
 } = require("../controllers/applicationController");
 
 router.delete("/deleteApplication/:applicationId", deleteApplication);
@@ -31,4 +32,5 @@ router.put("/requestMoreDocuments/:applicationId", requestMoreDocuments);
 
 router.post("/payment/:applicationId", customerPayment);
 router.put("/markAsPaid/:applicationId", markApplicationAsPaid);
+router.put("/dividePayment/:applicationId", dividePaymentIntoTwo);
 module.exports = router;
