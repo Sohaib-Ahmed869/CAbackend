@@ -413,6 +413,8 @@ const customerPayment = async (req, res) => {
       receipt_email: email,
     });
 
+    console.log(paymentIntent)
+
     res.status(200).json({ client_secret: paymentIntent.client_secret });
   } catch (error) {
     console.log(error);
