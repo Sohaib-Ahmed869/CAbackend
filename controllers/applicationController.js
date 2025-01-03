@@ -4,6 +4,11 @@ const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const { sendEmail } = require("../utils/emailUtil");
 const NodeCache = require("node-cache");
 const cache = new NodeCache({ stdTTL: 3 });
+const { Client, Environment } = require("square");
+const squareClient = new Client({
+  accessToken: process.env.SQUARE_ACCESS_TOKEN,
+  environment: Environment.Production, // Use Environment.Sandbox for testing
+});
 // Update Application Status
 const updateApplicationStatus = async (req, res) => {
   const { applicationId } = req.params;
@@ -378,223 +383,245 @@ const createNewApplicationByAgent = async (req, res) => {
 
 const customerPayment = async (req, res) => {
   const { applicationId } = req.params;
-
   let { price } = req.body;
+
   try {
+    // Validate application
     const applicationRef = db.collection("applications").doc(applicationId);
     const doc = await applicationRef.get();
-    if (!doc.exists)
+    if (!doc.exists) {
       return res.status(404).json({ message: "Application not found" });
+    }
 
-    //get price of application
     const applicationData = doc.data();
+    const userId = applicationData.userId;
 
-    let userId = applicationData.userId;
+    // Clean price and convert to cents
+    price = price.replace(/,/g, "");
+    const amountInCents = Math.round(parseFloat(price) * 100);
 
-    //remove , from price
-    price = price.replace(",", "");
-
-    console.log("Price:", price);
-    // Fetch user's email from the 'users' collection
+    // Get user details
     const userRef = db.collection("users").doc(userId);
     const userDoc = await userRef.get();
     if (!userDoc.exists) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const { email } = userDoc.data(); // Retrieve user's email
+    const { email, firstName, lastName } = userDoc.data();
 
-    //create a payment intent
-    const paymentIntent = await stripe.paymentIntents.create({
-      payment_method_types: ["card"],
-      amount: price * 100,
-      currency: "aud",
-      description: "Application Processing Fee",
-      receipt_email: email,
-    });
+    try {
+      // Create Square payment link with required parameters
+      const response = await squareClient.checkoutApi.createPaymentLink({
+        idempotencyKey: `${applicationId}-${Date.now()}`,
+        order: {
+          locationId: process.env.SQUARE_LOCATION_ID, // Required location ID
+          lineItems: [
+            {
+              name: "Application Processing Fee",
+              quantity: "1",
+              basePriceMoney: {
+                amount: amountInCents,
+                currency: "AUD",
+              },
+            },
+          ],
+        },
+        checkoutOptions: {
+          redirectUrl: `${process.env.CLIENT_URL}/payment-success?applicationId=${applicationId}`,
+          customerFields: {
+            email: { required: true },
+            firstName: { required: true },
+            lastName: { required: true },
+          },
+        },
+        prePopulatedData: {
+          buyerEmail: email,
+          buyerFirstName: firstName,
+          buyerLastName: lastName,
+        },
+        note: `Application ID: ${applicationId}`,
+      });
 
-    console.log(paymentIntent)
+      if (response.result && response.result.paymentLink) {
+        // Store payment link details in application
+        await applicationRef.update({
+          paymentLinkId: response.result.paymentLink.id,
+          paymentStatus: "pending",
+          paymentAmount: amountInCents,
+          paymentCreatedAt: new Date().toISOString(),
+        });
 
-    res.status(200).json({ client_secret: paymentIntent.client_secret });
+        console.log("Payment Link Created:", response.result.paymentLink.url);
+        res.status(200).json({
+          paymentLink: response.result.paymentLink.url,
+          orderId: response.result.paymentLink.orderId,
+        });
+      } else {
+        throw new Error("Failed to create payment link");
+      }
+    } catch (error) {
+      console.error("Square API Error:", error);
+      res.status(500).json({
+        message: "Payment processing failed",
+        error: error.message,
+      });
+    }
   } catch (error) {
-    console.log(error);
-    console.log("error occured here");
+    console.error("Server Error:", error);
     res.status(500).json({ message: error.message });
   }
 };
 
-const markApplicationAsPaid = async (req, res) => {
+const handleSquareWebhook = async (req, res) => {
+  try {
+    const event = req.body;
+
+    if (
+      event.type === "payment.updated" &&
+      event.data?.object?.status === "COMPLETED"
+    ) {
+      const payment = event.data.object;
+      const applicationId = payment.note.split(": ")[1];
+
+      const applicationRef = db.collection("applications").doc(applicationId);
+      const application = await applicationRef.get();
+
+      if (!application.exists) {
+        console.error(`Application ${applicationId} not found`);
+        return res.status(404).send();
+      }
+
+      // Update application payment status
+      await applicationRef.update({
+        paid: true,
+        paymentStatus: "completed",
+        paymentCompletedAt: new Date().toISOString(),
+        paymentId: payment.id,
+      });
+
+      // Send confirmation emails
+      await sendPaymentConfirmationEmails(applicationId);
+
+      res.status(200).json({ received: true });
+    } else {
+      res.status(200).json({ received: true });
+    }
+  } catch (error) {
+    console.error("Webhook Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Mark application as paid (used after webhook confirmation)
+const markApplicationAsPaid = async (req, res, isInternal = false) => {
   const { applicationId } = req.params;
 
   try {
     const applicationRef = db.collection("applications").doc(applicationId);
     const applicationDoc = await applicationRef.get();
-    if (!applicationDoc.exists)
-      return res.status(404).json({ message: "Application not found" });
 
+    if (!applicationDoc.exists) {
+      if (isInternal) return false;
+      return res.status(404).json({ message: "Application not found" });
+    }
+
+    const applicationData = applicationDoc.data();
+
+    // Update payment status based on payment scheme
     if (
-      applicationDoc.data().paid === true &&
-      applicationDoc.partialScheme === true
+      applicationData.partialScheme === true &&
+      applicationData.paid === true
     ) {
       await applicationRef.update({
         full_paid: true,
-        amount_paid: applicationDoc.data().price,
+        amount_paid: applicationData.price,
       });
     } else if (
-      applicationDoc.data().partialScheme === true &&
-      applicationDoc.data().paid === false
+      applicationData.partialScheme === true &&
+      applicationData.paid === false
     ) {
       await applicationRef.update({
         paid: true,
         full_paid: false,
-        amount_paid: applicationDoc.data().price,
+        amount_paid: applicationData.payment1,
       });
     } else {
       await applicationRef.update({
         paid: true,
         full_paid: true,
-        amount_paid: applicationDoc.data().price,
+        amount_paid: applicationData.price,
       });
     }
 
-    const { price } = applicationDoc.data();
-    let firstNameG = "";
-    let lastNameG = "";
-    let finalPrice = price.replace(",", "");
-    // Fetch user email and send a notification
-    const { userId } = applicationDoc.data();
-    const userRef = db.collection("users").doc(userId);
-    const userDoc = await userRef.get();
-    const currentStatus = applicationDoc.data().currentStatus;
-
-    const token = await auth.createCustomToken(userId);
-
-    const loginUrl = `${process.env.CLIENT_URL}/existing-applications?token=${token}`;
-
-    if (userDoc.exists) {
-      const { email, firstName, lastName } = userDoc.data();
-
-      firstNameG = firstName;
-      lastNameG = lastName;
-
-      const emailSubject = "Payment Confirmation and Next Steps";
-      const emailBody = `
-        <h2>Dear ${firstName} ${lastName},</h2>
-        
-        <p>We are delighted to inform you that your payment has been successfully received and confirmed.</p>
-        
-
-        <h3>Next Steps</h3>
-        <ul>
-          <li>Log in to your account on our platform.</li>
-          <li>Navigate to the <strong>Existing Applications</strong> section in your dashboard.</li>
-          <li>View your application and proceed with the next steps.</li>
-        </ul>
-      
-        <a href="${loginUrl}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">View Application</a>
-      
-        
-        <p>If you have any questions or need support with the form, feel free to contact our support team. We're here to assist you every step of the way!</p>
-        
-        <p>Thank you once again for choosing us. We look forward to supporting you on your educational journey.</p>
-        
-        <p>Warm regards,</p>
-        <p><strong>Certified Australia</strong></p>
-      `;
-
-      await sendEmail(email, emailBody, emailSubject);
+    if (!isInternal) {
+      return res.status(200).json({ message: "Application marked as paid" });
     }
-
-    const initialFormId = applicationDoc.data().initialFormId;
-    const initialFormsSnapshot = await db
-      .collection("initialScreeningForms")
-      .doc(initialFormId)
-      .get();
-
-    const { lookingForWhatQualification } = initialFormsSnapshot.data();
-    const admin = await db
-      .collection("users")
-      .where("role", "==", "admin")
-      .get();
-    admin.forEach(async (adminDoc) => {
-      const adminData = adminDoc.data();
-      const adminEmail = adminData.email;
-      const adminUserId = adminData.id;
-
-      const adminToken = await auth.createCustomToken(adminUserId);
-      const adminUrl = `${process.env.CLIENT_URL}/admin?token=${adminToken}`;
-
-      const adminEmailBody = `
-        <h2 style="color: #2c3e50;">🎉 Payment Processed</h2>
-        <p style="color: #2c3e50;">A payment has been made by ${firstNameG} ${lastNameG}.</p>
-        <p><strong>Application Details:</strong></p>
-        <ul>
-          <li>Application ID: ${applicationDoc.id}</li>
-          <li>Application Type: ${applicationDoc.data().type}</li>
-          <li>Price: ${applicationDoc.data().price}</li>
-          <li>Qualification Name: ${lookingForWhatQualification}</li>
-        </ul>
-        <p>Click below to view the application:</p>
-        <a href="${adminUrl}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">View Application</a>
-      `;
-
-      const adminEmailSubject = "Payment Processed";
-
-      try {
-        await sendEmail(adminEmail, adminEmailBody, adminEmailSubject);
-        console.log(`Email sent to admin: ${adminEmail}`);
-      } catch (err) {
-        console.error(
-          `Failed to send email to admin: ${adminEmail}. Error: ${err.message}`
-        );
-      }
-    });
-
-    if (applicationDoc.data().currentStatus === "Sent to RTO") {
-      const rto = await db.collection("users").where("role", "==", "rto").get();
-      rto.forEach(async (doc) => {
-        const rtoEmail = doc.data().email;
-        const rtoUserId = doc.data().id;
-        const loginToken = await auth.createCustomToken(rtoUserId);
-        const URL2 = `${process.env.CLIENT_URL}/rto?token=${loginToken}`;
-
-        const emailBody = `
-      <h2 style="color: #2c3e50;">🎉 Application Completed! 🎉</h2>
-      <p style="color: #34495e;">Hello RTO,</p>
-      <p>A user has completed their application</p>
-      <strong>Application Details:</strong>
-      <ul>
-        <li>Application ID: ${applicationDoc.applicationId}</li>
-        <li>Application Type: ${applicationDoc.data().type}</li>
-        <li>Price: ${applicationDoc.data().price}</li>
-        <li>Application Date: ${new Date().toISOString()}</li>
-      </ul>
-      <p>Click the button below to view their application, and upload the certificate:</p>
-      <a href="${URL2}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Upload Certificate</a>
-      <p style="font-style: italic;">For more details, please visit the rto dashboard.</p>
-      <p>Thank you for your attention.</p>
-      <p>
-    <strong>Best Regards,</strong><br>
-    The Certified Australia Team<br>
-    Email: <a href="mailto:info@certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">info@certifiedaustralia.com.au</a><br>
-    Phone: <a href="tel:1300044927" style="color: #3498db; text-decoration: none;">1300 044 927</a><br>
-    Website: <a href="https://www.certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">www.certifiedaustralia.com.au</a>
-    </p>
-      `;
-        const emailSubject = "Application Submitted";
-
-        await sendEmail(rtoEmail, emailBody, emailSubject);
-      });
-    }
-
-    res.status(200).json({ message: "Application marked as paid" });
+    return true;
   } catch (error) {
-    console.log(error);
-
-    res.status(500).json({ message: error.message });
+    console.error("Error marking application as paid:", error);
+    if (isInternal) return false;
+    return res.status(500).json({ message: error.message });
   }
 };
 
+// Helper function to send confirmation emails
+async function sendPaymentConfirmationEmails(applicationId) {
+  const applicationRef = db.collection("applications").doc(applicationId);
+  const applicationDoc = await applicationRef.get();
+  const applicationData = applicationDoc.data();
+
+  // Get user details
+  const userRef = db.collection("users").doc(applicationData.userId);
+  const userDoc = await userRef.get();
+  const userData = userDoc.data();
+
+  // Generate login token
+  const token = await auth.createCustomToken(applicationData.userId);
+  const loginUrl = `${process.env.CLIENT_URL}/existing-applications?token=${token}`;
+
+  // Send email to user
+  if (userData) {
+    const userEmailBody = `
+      <h2>Dear ${userData.firstName} ${userData.lastName},</h2>
+      <p>Thank you for your payment. Your application has been successfully processed.</p>
+      <h3>Next Steps</h3>
+      <ul>
+        <li>Log in to your account to view your application status</li>
+        <li>Complete any remaining requirements</li>
+        <li>Track your application progress</li>
+      </ul>
+      <a href="${loginUrl}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">View Application</a>
+      <p>If you have any questions, please contact our support team.</p>
+      <p>Best regards,<br>Certified Australia</p>
+    `;
+    await sendEmail(userData.email, userEmailBody, "Payment Confirmation");
+  }
+
+  // Send email to admin
+  const adminSnapshot = await db
+    .collection("users")
+    .where("role", "==", "admin")
+    .get();
+  for (const adminDoc of adminSnapshot.docs) {
+    const adminData = adminDoc.data();
+    const adminToken = await auth.createCustomToken(adminData.id);
+    const adminUrl = `${process.env.CLIENT_URL}/admin?token=${adminToken}`;
+
+    const adminEmailBody = `
+      <h2>New Payment Received</h2>
+      <p>A payment has been processed for application ${applicationId}.</p>
+      <p><strong>Details:</strong></p>
+      <ul>
+        <li>Application ID: ${applicationId}</li>
+        <li>User: ${userData.firstName} ${userData.lastName}</li>
+        <li>Amount: ${applicationData.amount_paid}</li>
+        <li>Date: ${new Date().toISOString()}</li>
+      </ul>
+      <a href="${adminUrl}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">View Details</a>
+    `;
+    await sendEmail(adminData.email, adminEmailBody, "New Payment Processed");
+  }
+}
 const deleteApplication = async (req, res) => {
   const { applicationId } = req.params;
 
@@ -677,6 +704,49 @@ const dividePaymentIntoTwo = async (req, res) => {
   }
 };
 
+const processPayment = async (req, res) => {
+  const { applicationId } = req.params;
+  const { sourceId, price } = req.body;
+
+  try {
+    const amountInCents = Math.round(parseFloat(price) * 100);
+
+    const payment = await squareClient.paymentsApi.createPayment({
+      sourceId,
+      idempotencyKey: `${applicationId}-${Date.now()}`,
+      amountMoney: {
+        amount: amountInCents,
+        currency: "AUD",
+      },
+      note: `Application ID: ${applicationId}`,
+    });
+
+    if (payment.result.payment.status === "COMPLETED") {
+      // Update application status with isInternal flag
+      const updated = await markApplicationAsPaid(req, res, true);
+      if (!updated) {
+        return res
+          .status(500)
+          .json({
+            success: false,
+            message: "Failed to mark application as paid",
+          });
+      }
+
+      // Send confirmation emails
+      await sendPaymentConfirmationEmails(applicationId);
+
+      return res.json({ success: true });
+    } else {
+      return res
+        .status(400)
+        .json({ success: false, message: "Payment not completed" });
+    }
+  } catch (error) {
+    console.error("Payment Error:", error);
+    return res.status(400).json({ success: false, message: error.message });
+  }
+};
 module.exports = {
   getUserApplications,
   createNewApplication,
@@ -686,4 +756,7 @@ module.exports = {
   createNewApplicationByAgent,
   deleteApplication,
   dividePaymentIntoTwo,
+  handleSquareWebhook,
+  processPayment,
+  handleSquareWebhook,
 };

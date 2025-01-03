@@ -17,6 +17,8 @@ const {
   createNewApplicationByAgent,
   deleteApplication,
   dividePaymentIntoTwo,
+  processPayment,
+  handleSquareWebhook,
 } = require("../controllers/applicationController");
 
 router.delete("/deleteApplication/:applicationId", deleteApplication);
@@ -33,4 +35,6 @@ router.put("/requestMoreDocuments/:applicationId", requestMoreDocuments);
 router.post("/payment/:applicationId", customerPayment);
 router.put("/markAsPaid/:applicationId", markApplicationAsPaid);
 router.put("/dividePayment/:applicationId", dividePaymentIntoTwo);
+router.post("/processPayment/:applicationId", processPayment);
+router.post("/webhook", handleSquareWebhook);
 module.exports = router;
