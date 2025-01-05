@@ -725,12 +725,10 @@ const processPayment = async (req, res) => {
       // Update application status with isInternal flag
       const updated = await markApplicationAsPaid(req, res, true);
       if (!updated) {
-        return res
-          .status(500)
-          .json({
-            success: false,
-            message: "Failed to mark application as paid",
-          });
+        return res.status(500).json({
+          success: false,
+          message: "Failed to mark application as paid",
+        });
       }
 
       // Send confirmation emails
@@ -747,6 +745,72 @@ const processPayment = async (req, res) => {
     return res.status(400).json({ success: false, message: error.message });
   }
 };
+
+const exportApplicationsToCSV = async (req, res) => {
+  try {
+    const BATCH_SIZE = 100; // Number of documents to process at once
+    const applications = [];
+    
+    // Get all application IDs first
+    const applicationsSnapshot = await db.collection("applications").get();
+    const applicationDocs = applicationsSnapshot.docs;
+    
+    // Process applications in batches
+    for (let i = 0; i < applicationDocs.length; i += BATCH_SIZE) {
+      const batch = applicationDocs.slice(i, i + BATCH_SIZE);
+      const batchPromises = batch.map(async (doc) => {
+        const application = doc.data();
+        
+        // Create a promise for user data fetch
+        const userPromise = db
+          .collection("users")
+          .doc(application.userId)
+          .get()
+          .then(doc => doc.exists ? doc.data() : {})
+          .catch(() => ({})); // Handle missing documents gracefully
+        
+        // Wait for user data
+        const user = await userPromise;
+        
+        // Get latest status
+        const latestStatus = application.status?.[0] || { statusname: '', time: '' };
+        const formattedDate = new Date(latestStatus.time).toISOString().split('T')[0];
+        
+        return {
+          'Application ID': application.applicationId || '',
+          'Date Created': formattedDate,
+          'Current Status': application.currentStatus || '',
+          'Certificate ID': application.certificateId || '',
+          'Payment Status': application.paid ? 'Paid' : 'Unpaid',
+          'Price': application.price || '',
+          'Type': application.type || '',
+          // User Data
+          'First Name': user.firstName || '',
+          'Last Name': user.lastName || '',
+          'Email': user.email || '',
+          'Phone': user.phone || '',
+          'Country': user.country || '',
+          'Role': user.role || '',
+          'Terms Accepted': user.toc ? 'Yes' : 'No',
+          'Verified': user.verified ? 'Yes' : 'No'
+        };
+      });
+      
+      // Wait for this batch to complete and add to results
+      const batchResults = await Promise.all(batchPromises);
+      applications.push(...batchResults);
+    }
+    
+    // Sort by date
+    applications.sort((a, b) => new Date(b['Date Created']) - new Date(a['Date Created']));
+    
+    res.status(200).json({ applications });
+  } catch (error) {
+    console.error('Error exporting applications:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   getUserApplications,
   createNewApplication,
@@ -759,4 +823,5 @@ module.exports = {
   handleSquareWebhook,
   processPayment,
   handleSquareWebhook,
+  exportApplicationsToCSV,
 };

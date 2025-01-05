@@ -66,6 +66,7 @@ const UploadCertificate = async (req, res) => {
           time: new Date().toISOString(),
         },
       ],
+      color: "green",
     });
     // Fetch user email and send notification
     const { userId } = applicationDoc.data();
