@@ -19,7 +19,8 @@ const {
   dividePaymentIntoTwo,
   processPayment,
   handleSquareWebhook,
-  exportApplicationsToCSV
+  exportApplicationsToCSV,
+  addDiscountToApplication
 } = require("../controllers/applicationController");
 
 router.delete("/deleteApplication/:applicationId", deleteApplication);
@@ -39,4 +40,5 @@ router.put("/dividePayment/:applicationId", dividePaymentIntoTwo);
 router.post("/processPayment/:applicationId", processPayment);
 router.post("/webhook", handleSquareWebhook);
 router.get("/export", exportApplicationsToCSV);
+router.put("/discount/:applicationId", addDiscountToApplication);
 module.exports = router;

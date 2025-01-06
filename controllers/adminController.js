@@ -295,47 +295,69 @@ const markApplicationAsPaid = async (req, res) => {
 
 const getDashboardStats = async (req, res) => {
   try {
-    const [
-      applicationsSnapshot,
-      customersSnapshot,
-      agentsSnapshot,
-      verifiedApplicationsSnapshot,
-      verifiedCustomersSnapshot,
-      paidApplicationsSnapshot,
-      rtoApplicationsSnapshot,
-    ] = await Promise.all([
-      db.collection("applications").get(),
-      db.collection("users").where("role", "==", "customer").get(),
-      db.collection("users").where("role", "==", "agent").get(),
-      db.collection("applications").where("verified", "==", true).get(),
-      db
-        .collection("users")
-        .where("role", "==", "customer")
-        .where("verified", "==", true)
-        .get(),
-      db.collection("applications").where("paid", "==", true).get(),
-      db
-        .collection("applications")
-        .where("currentStatus", "==", "Sent to RTO")
-        .get(),
-    ]);
+    // Get all applications
+    const applicationsSnapshot = await db.collection("applications").get();
+    const applications = applicationsSnapshot.docs.map((doc) => doc.data());
 
-    const stats = {
-      totalApplications: applicationsSnapshot.size,
-      totalCustomers: customersSnapshot.size,
-      totalAgents: agentsSnapshot.size,
-      verifiedApplications: verifiedApplicationsSnapshot.size,
-      verifiedCustomers: verifiedCustomersSnapshot.size,
-      paidApplications: paidApplicationsSnapshot.size,
-      rtoApplications: rtoApplicationsSnapshot.size,
-    };
+    // Get all users
+    const usersSnapshot = await db.collection("users").get();
+    const users = usersSnapshot.docs.map((doc) => doc.data());
 
-    res.status(200).json(stats);
+    // Calculate stats
+    const totalApplications = applications.length;
+
+    // Calculate total payments (sum of all prices where payment is completed)
+    const totalPayments = applications
+      .filter((app) => app.paid)
+      .reduce((sum, app) => {
+        const price = parseFloat(app.price.toString().replace(/,/g, "")) || 0;
+        return sum + price;
+      }, 0);
+
+    // Count paid applications
+    const paidApplications = applications.filter((app) => app.paid).length;
+
+    // Count certificates generated
+    const certificatesGenerated = applications.filter(
+      (app) =>
+        app.currentStatus === "Certificate Generated" ||
+        app.currentStatus === "Dispatched" ||
+        app.currentStatus === "Completed"
+    ).length;
+
+    // Count RTO applications
+    const rtoApplications = applications.filter(
+      (app) => app.currentStatus === "Sent to RTO"
+    ).length;
+
+    // Count pending payments
+    const pendingPayments = applications.filter(
+      (app) => !app.paid && app.currentStatus !== "Rejected"
+    ).length;
+
+    // Count total customers (users with role 'customer')
+    const totalCustomers = users.filter(
+      (user) => user.role === "customer"
+    ).length;
+
+    // Count total agents
+    const totalAgents = users.filter((user) => user.role === "agent").length;
+
+    res.status(200).json({
+      totalApplications,
+      totalPayments: totalPayments.toFixed(2),
+      paidApplications,
+      certificatesGenerated,
+      rtoApplications,
+      pendingPayments,
+      totalCustomers,
+      totalAgents,
+    });
   } catch (error) {
+    console.error("Error getting dashboard stats:", error);
     res.status(500).json({ message: error.message });
   }
 };
-
 const addNoteToApplication = async (req, res) => {
   const { applicationId } = req.params;
   const { note } = req.body;
