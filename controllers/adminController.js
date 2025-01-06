@@ -343,7 +343,7 @@ const getDashboardStats = async (req, res) => {
     // Count total agents
     const totalAgents = users.filter((user) => user.role === "agent").length;
 
-    res.status(200).json({
+    return res.status(200).json({
       totalApplications,
       totalPayments: totalPayments.toFixed(2),
       paidApplications,
@@ -355,7 +355,7 @@ const getDashboardStats = async (req, res) => {
     });
   } catch (error) {
     console.error("Error getting dashboard stats:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: error.message }); 
   }
 };
 const addNoteToApplication = async (req, res) => {
