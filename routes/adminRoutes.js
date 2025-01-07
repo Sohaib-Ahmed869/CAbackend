@@ -24,7 +24,7 @@ router.put("/verify/:userId", verifyCustomer);
 router.get("/applications", getApplications);
 router.put("/verifyApplication/:apxplicationId", verifyApplication);
 router.put("/markApplicationAsPaid/:applicationId", markApplicationAsPaid);
-router.get("/dashboardStats", getDashboardStats);
+router.get("/dashboardStats/:id", getDashboardStats);
 router.put("/addNoteToApplication/:applicationId", addNoteToApplication);
 router.post("/resend/:userId", resendEmail);
 router.put("/colorToApplication/:applicationId", addColorToApplication);

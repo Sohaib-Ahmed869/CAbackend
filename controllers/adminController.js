@@ -295,6 +295,27 @@ const markApplicationAsPaid = async (req, res) => {
 
 const getDashboardStats = async (req, res) => {
   try {
+    //get user id from the params of the request
+    const userId = req.params.id;
+    //console.log request params
+    console.log("req.params", req.params);
+    console.log("userId", userId);
+
+    // Get the user document
+    const userDoc = await db.collection("users").doc(userId).get();
+    let type;
+
+    if (userDoc.data().role === "admin") {
+      type = userDoc.data().type;
+    }
+
+    // Check if the user exists
+    if (!userDoc.exists) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Check if the user is an admin
+
     // Get all applications
     const applicationsSnapshot = await db.collection("applications").get();
     const applications = applicationsSnapshot.docs.map((doc) => doc.data());
@@ -345,7 +366,7 @@ const getDashboardStats = async (req, res) => {
 
     return res.status(200).json({
       totalApplications,
-      totalPayments: totalPayments.toFixed(2),
+      totalPayments: type === "general" ? 0 : totalPayments,
       paidApplications,
       certificatesGenerated,
       rtoApplications,
@@ -355,7 +376,7 @@ const getDashboardStats = async (req, res) => {
     });
   } catch (error) {
     console.error("Error getting dashboard stats:", error);
-    res.status(500).json({ message: error.message }); 
+    res.status(500).json({ message: error.message });
   }
 };
 const addNoteToApplication = async (req, res) => {
