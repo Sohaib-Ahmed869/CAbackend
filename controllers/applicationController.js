@@ -781,10 +781,24 @@ const exportApplicationsToCSV = async (req, res) => {
           .toISOString()
           .split("T")[0];
 
+        const colorStatus =
+          application.color === "red"
+            ? "Hot Enquiry"
+            : application.color === "yellow"
+            ? "Proceeded With Payment"
+            : application.color === "gray"
+            ? "Cold Enquiry"
+            : application.color === "lightblue"
+            ? "Impacted Student"
+            : application.color === "green"
+            ? "Completed"
+            : "N/A";
+
         return {
           "Application ID": application.applicationId || "",
           "Date Created": formattedDate,
           "Current Status": application.currentStatus || "",
+          "Color Status": colorStatus,
           "Certificate ID": application.certificateId || "",
           "Payment Status": application.paid ? "Paid" : "Unpaid",
           Price: application.price || "",
@@ -844,8 +858,6 @@ const addDiscountToApplication = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-
-
 
 module.exports = {
   getUserApplications,
