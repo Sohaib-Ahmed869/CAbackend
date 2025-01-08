@@ -3,11 +3,6 @@ const NodeCache = require("node-cache");
 const cache = new NodeCache({ stdTTL: 20 });
 const getApplications = async (req, res) => {
   try {
-    const cachedApplications = cache.get("applications");
-    if (cachedApplications) {
-      return res.status(200).json(cachedApplications);
-    }
-
     // Fetch applications and related data in parallel
     const [
       applicationsSnapshot,

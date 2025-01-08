@@ -342,6 +342,38 @@ const getDashboardStats = async (req, res) => {
         return sum + price;
       }, 0);
 
+    const totalPaymentsWithPartial = applications
+      .filter((app) => app.paid && app.partialScheme)
+      .reduce((sum, app) => {
+        let price = app.full_paid
+          ? app.price.replace(",", "")
+          : app.amount_paid;
+        //filter out NaNs
+        price = isNaN(price) ? 0 : parseFloat(price);
+        console.log("price", price);
+        return sum + price;
+      }, 0);
+
+    const totalPaymentsWithoutPartial = applications
+      .filter((app) => app.paid && !app.partialScheme)
+      .reduce((sum, app) => {
+        let price = app.price.replace(",", "");
+        //filter out NaNs
+        price = isNaN(price) ? 0 : parseFloat(price);
+        console.log("price", price);
+        return sum + price;
+      }, 0);
+
+    const totalRemainingPaymentsINPartial = applications
+      .filter((app) => app.partialScheme && !app.full_paid)
+      .reduce((sum, app) => {
+        let price = app.price.replace(",", "") - app.amount_paid;
+        //filter out NaNs
+        price = isNaN(price) ? 0 : parseFloat(price);
+        console.log("price", price);
+        return sum + price;
+      }, 0);
+
     // Count paid applications
     const paidApplications = applications.filter((app) => app.paid).length;
 
@@ -374,6 +406,10 @@ const getDashboardStats = async (req, res) => {
     return res.status(200).json({
       totalApplications,
       totalPayments: type === "general" ? 0 : totalPayments,
+      totalPaymentsWithPartial:
+        type === "general" ? 0 : totalPaymentsWithPartial,
+      totalPaymentsWithoutPartial:
+        type === "general" ? 0 : totalRemainingPaymentsINPartial,
       paidApplications,
       certificatesGenerated,
       rtoApplications,

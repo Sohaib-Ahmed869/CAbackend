@@ -536,6 +536,18 @@ const markApplicationAsPaid = async (req, res, isInternal = false) => {
         full_paid: true,
         amount_paid: applicationData.price,
       });
+
+      //update the application status
+      await applicationRef.update({
+        currentStatus: "Sent to RTO",
+        status: [
+          ...applicationDoc.data().status,
+          {
+            statusname: "Sent to RTO",
+            time: new Date().toISOString(),
+          },
+        ],
+      });
     } else if (
       applicationData.partialScheme === true &&
       applicationData.paid === false
@@ -550,6 +562,16 @@ const markApplicationAsPaid = async (req, res, isInternal = false) => {
         paid: true,
         full_paid: true,
         amount_paid: applicationData.price,
+      });
+      await applicationRef.update({
+        currentStatus: "Sent to RTO",
+        status: [
+          ...applicationDoc.data().status,
+          {
+            statusname: "Sent to RTO",
+            time: new Date().toISOString(),
+          },
+        ],
       });
     }
 
