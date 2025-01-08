@@ -20,7 +20,9 @@ const {
   processPayment,
   handleSquareWebhook,
   exportApplicationsToCSV,
-  addDiscountToApplication
+  addDiscountToApplication,
+  getApplicationExpenses,
+  addExpenseToApplication,
 } = require("../controllers/applicationController");
 
 router.delete("/deleteApplication/:applicationId", deleteApplication);
@@ -41,4 +43,6 @@ router.post("/processPayment/:applicationId", processPayment);
 router.post("/webhook", handleSquareWebhook);
 router.get("/export", exportApplicationsToCSV);
 router.put("/discount/:applicationId", addDiscountToApplication);
+router.post("/expense/:applicationId", addExpenseToApplication);
+router.get("/expenses/:applicationId", getApplicationExpenses);
 module.exports = router;

@@ -859,6 +859,64 @@ const addDiscountToApplication = async (req, res) => {
   }
 };
 
+const addExpenseToApplication = async (req, res) => {
+  const { applicationId } = req.params;
+  const { amount, description, date } = req.body;
+
+  try {
+    const applicationRef = db.collection("applications").doc(applicationId);
+    const doc = await applicationRef.get();
+
+    if (!doc.exists) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+
+    // Get current expenses array or initialize if it doesn't exist
+    const currentExpenses = doc.data().expenses || [];
+
+    // Add new expense to the array
+    const newExpense = {
+      id: Date.now().toString(), // Simple unique ID
+      amount,
+      description,
+      date,
+      createdAt: new Date().toISOString(),
+    };
+
+    await applicationRef.update({
+      expenses: [...currentExpenses, newExpense],
+    });
+
+    res.status(200).json({
+      message: "Expense added successfully",
+      expense: newExpense,
+    });
+  } catch (error) {
+    console.error("Error adding expense:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getApplicationExpenses = async (req, res) => {
+  const { applicationId } = req.params;
+
+  try {
+    const applicationRef = db.collection("applications").doc(applicationId);
+    const doc = await applicationRef.get();
+
+    if (!doc.exists) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+
+    const expenses = doc.data().expenses || [];
+
+    res.status(200).json({ expenses });
+  } catch (error) {
+    console.error("Error getting expenses:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   getUserApplications,
   createNewApplication,
@@ -873,4 +931,6 @@ module.exports = {
   handleSquareWebhook,
   exportApplicationsToCSV,
   addDiscountToApplication,
+  getApplicationExpenses,
+  addExpenseToApplication,
 };

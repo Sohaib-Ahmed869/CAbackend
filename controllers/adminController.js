@@ -331,7 +331,14 @@ const getDashboardStats = async (req, res) => {
     const totalPayments = applications
       .filter((app) => app.paid)
       .reduce((sum, app) => {
-        const price = parseFloat(app.price.toString().replace(/,/g, "")) || 0;
+        let price = app.partialScheme
+          ? app.full_paid
+            ? app.price.replace(",", "")
+            : app.amount_paid
+          : app.price.replace(",", "");
+        //filter out NaNs
+        price = isNaN(price) ? 0 : parseFloat(price);
+        console.log("price", price);
         return sum + price;
       }, 0);
 
