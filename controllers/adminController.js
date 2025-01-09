@@ -152,6 +152,119 @@ const getApplications = async (req, res) => {
   }
 };
 
+const getAdminApplications = async (req, res) => {
+  try {
+    console.log("here");
+
+    const { userId } = req.params;
+
+    //get the admin
+    const admin = await db.collection("users").doc(userId).get();
+
+    if (!admin.exists) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    //get the email of the admin
+    const email = admin.data().email;
+
+    console.log(email);
+
+    const [
+      applicationsSnapshot,
+      initialScreeningFormsSnapshot,
+      documentsFormsSnapshot,
+      studentIntakeFormsSnapshot,
+      usersSnapshot,
+    ] = await Promise.all([
+      db.collection("applications").get(),
+      db.collection("initialScreeningForms").get(),
+      db.collection("documents").get(),
+      db.collection("studentIntakeForms").get(),
+      db.collection("users").get(),
+    ]);
+
+    const initialScreeningForms = {};
+    initialScreeningFormsSnapshot.docs.forEach((doc) => {
+      initialScreeningForms[doc.id] = doc.data();
+    });
+
+    const documentsForms = {};
+    documentsFormsSnapshot.docs.forEach((doc) => {
+      documentsForms[doc.id] = doc.data();
+    });
+
+    const studentIntakeForms = {};
+    studentIntakeFormsSnapshot.docs.forEach((doc) => {
+      studentIntakeForms[doc.id] = doc.data();
+    });
+
+    const users = {};
+    usersSnapshot.docs.forEach((doc) => {
+      users[doc.id] = doc.data();
+    });
+
+    if (email === "gabi@certifiedaustralia.com.au") {
+      let applications = applicationsSnapshot.docs.map((doc) => {
+        const application = doc.data();
+
+        return {
+          ...application,
+          isf: initialScreeningForms[application.initialFormId] || null,
+          document: documentsForms[application.documentsFormId] || null,
+          sif: studentIntakeForms[application.studentFormId] || null,
+          user: users[application.userId] || null,
+        };
+      });
+
+      applications = applications.filter(
+        (application) => application.assignedAdmin === "Gabi"
+      );
+
+      cache.set("applications", applications); // Store results in cache
+      return res.status(200).json(applications);
+    } else if (email == "ehsan@certifiedaustralia.com.au") {
+      let applications = applicationsSnapshot.docs.map((doc) => {
+        const application = doc.data();
+
+        return {
+          ...application,
+          isf: initialScreeningForms[application.initialFormId] || null,
+          document: documentsForms[application.documentsFormId] || null,
+          sif: studentIntakeForms[application.studentFormId] || null,
+          user: users[application.userId] || null,
+        };
+      });
+
+      applications = applications.filter(
+        (application) => application.assignedAdmin == "Ehsan"
+      );
+
+      console.log(applications);
+
+      cache.set("applications", applications); // Store results in cache
+      return res.status(200).json(applications);
+    } else {
+      const applications = applicationsSnapshot.docs.map((doc) => {
+        const application = doc.data();
+
+        return {
+          ...application,
+          isf: initialScreeningForms[application.initialFormId] || null,
+          document: documentsForms[application.documentsFormId] || null,
+          sif: studentIntakeForms[application.studentFormId] || null,
+          user: users[application.userId] || null,
+        };
+      });
+
+      cache.set("applications", applications); // Store results in cache
+      res.status(200).json(applications);
+    }
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: error.message });
+  }
+};
 const verifyApplication = async (req, res) => {
   const { applicationId } = req.params;
 
@@ -262,7 +375,6 @@ const verifyApplication = async (req, res) => {
 const markApplicationAsPaid = async (req, res) => {
   const { applicationId } = req.params;
 
-  console.log(applicationId);
   try {
     const applicationRef = db.collection("applications").doc(applicationId);
     const applicationDoc = await applicationRef.get();
@@ -297,9 +409,6 @@ const getDashboardStats = async (req, res) => {
   try {
     //get user id from the params of the request
     const userId = req.params.id;
-    //console.log request params
-    console.log("req.params", req.params);
-    console.log("userId", userId);
 
     // Get the user document
     const userDoc = await db.collection("users").doc(userId).get();
@@ -338,7 +447,6 @@ const getDashboardStats = async (req, res) => {
           : app.price.replace(",", "");
         //filter out NaNs
         price = isNaN(price) ? 0 : parseFloat(price);
-        console.log("price", price);
         return sum + price;
       }, 0);
 
@@ -350,7 +458,6 @@ const getDashboardStats = async (req, res) => {
           : app.amount_paid;
         //filter out NaNs
         price = isNaN(price) ? 0 : parseFloat(price);
-        console.log("price", price);
         return sum + price;
       }, 0);
 
@@ -360,7 +467,6 @@ const getDashboardStats = async (req, res) => {
         let price = app.price.replace(",", "");
         //filter out NaNs
         price = isNaN(price) ? 0 : parseFloat(price);
-        console.log("price", price);
         return sum + price;
       }, 0);
 
@@ -370,7 +476,6 @@ const getDashboardStats = async (req, res) => {
         let price = app.price.replace(",", "") - app.amount_paid;
         //filter out NaNs
         price = isNaN(price) ? 0 : parseFloat(price);
-        console.log("price", price);
         return sum + price;
       }, 0);
 
@@ -538,4 +643,5 @@ module.exports = {
   addNoteToApplication,
   resendEmail,
   addColorToApplication,
+  getAdminApplications,
 };

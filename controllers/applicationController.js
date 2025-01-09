@@ -939,6 +939,32 @@ const getApplicationExpenses = async (req, res) => {
   }
 };
 
+const assignApplicationToAdmin = async (req, res) => {
+  const { applicationId } = req.params;
+  const { adminName } = req.body;
+
+  try {
+    const applicationRef = db.collection("applications").doc(applicationId);
+    const doc = await applicationRef.get();
+
+    if (!doc.exists) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+
+    await applicationRef.update({
+      assignedAdmin: adminName,
+    });
+
+    res.status(200).json({
+      message: "Application assigned to admin successfully",
+      adminName,
+    });
+  } catch (error) {
+    console.error("Error assigning application to admin:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   getUserApplications,
   createNewApplication,
@@ -955,4 +981,5 @@ module.exports = {
   addDiscountToApplication,
   getApplicationExpenses,
   addExpenseToApplication,
+  assignApplicationToAdmin,
 };

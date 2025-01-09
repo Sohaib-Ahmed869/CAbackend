@@ -23,6 +23,7 @@ const {
   addDiscountToApplication,
   getApplicationExpenses,
   addExpenseToApplication,
+  assignApplicationToAdmin,
 } = require("../controllers/applicationController");
 
 router.delete("/deleteApplication/:applicationId", deleteApplication);
@@ -45,4 +46,5 @@ router.get("/export", exportApplicationsToCSV);
 router.put("/discount/:applicationId", addDiscountToApplication);
 router.post("/expense/:applicationId", addExpenseToApplication);
 router.get("/expenses/:applicationId", getApplicationExpenses);
+router.put("/assign/:applicationId", assignApplicationToAdmin);
 module.exports = router;

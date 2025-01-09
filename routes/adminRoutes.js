@@ -13,6 +13,7 @@ const {
   addNoteToApplication,
   resendEmail,
   addColorToApplication,
+  getAdminApplications
 } = require("../controllers/adminController");
 
 const router = express.Router();
@@ -22,6 +23,7 @@ router.post("/register", registerAdmin);
 router.get("/customers", getCustomers);
 router.put("/verify/:userId", verifyCustomer);
 router.get("/applications", getApplications);
+router.get("/applications/:userId", getAdminApplications);
 router.put("/verifyApplication/:apxplicationId", verifyApplication);
 router.put("/markApplicationAsPaid/:applicationId", markApplicationAsPaid);
 router.get("/dashboardStats/:id", getDashboardStats);
