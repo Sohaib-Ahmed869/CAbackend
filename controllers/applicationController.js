@@ -629,6 +629,18 @@ async function sendPaymentConfirmationEmails(applicationId) {
     const adminToken = await auth.createCustomToken(adminData.id);
     const adminUrl = `${process.env.CLIENT_URL}/admin?token=${adminToken}`;
 
+    const discount = applicationData.discount || 0;
+
+    let price = applicationData.price;
+
+    if (applicationData.partialScheme) {
+      price = applicationData.amount_paid;
+    } else if (discount > 0) {
+      price = price - discount;
+    } else {
+      price = price;
+    }
+
     const adminEmailBody = `
       <h2>New Payment Received</h2>
       <p>A payment has been processed for application ${applicationId}.</p>
@@ -636,7 +648,8 @@ async function sendPaymentConfirmationEmails(applicationId) {
       <ul>
         <li>Application ID: ${applicationId}</li>
         <li>User: ${userData.firstName} ${userData.lastName}</li>
-        <li>Amount: ${applicationData.amount_paid}</li>
+        <li>Amount: ${price}</li>
+        
         <li>Date: ${new Date().toISOString()}</li>
       </ul>
       <a href="${adminUrl}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">View Details</a>
@@ -814,6 +827,8 @@ const exportApplicationsToCSV = async (req, res) => {
             ? "Impacted Student"
             : application.color === "green"
             ? "Completed"
+            : application.color === "pink"
+            ? "Agent"
             : "N/A";
 
         return {
