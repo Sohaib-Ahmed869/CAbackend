@@ -818,11 +818,13 @@ const exportApplicationsToCSV = async (req, res) => {
 
         const colorStatus =
           application.color === "red"
-            ? "Hot Enquiry"
+            ? "Hot Lead"
             : application.color === "yellow"
             ? "Proceeded With Payment"
             : application.color === "gray"
-            ? "Cold Enquiry"
+            ? "Cold Lead"
+            : application.color === "orange"
+            ? "Warm Lead"
             : application.color === "lightblue"
             ? "Impacted Student"
             : application.color === "green"
@@ -834,12 +836,14 @@ const exportApplicationsToCSV = async (req, res) => {
         return {
           "Application ID": application.applicationId || "",
           "Date Created": formattedDate,
+          "Agent Assigned": application.assignedAdmin || "",
           "Current Status": application.currentStatus || "",
           "Color Status": colorStatus,
           "Certificate ID": application.certificateId || "",
           "Payment Status": application.paid ? "Paid" : "Unpaid",
           Price: application.price || "",
           Type: application.type || "",
+          Notes: application.note || "",
           // User Data
           "First Name": user.firstName || "",
           "Last Name": user.lastName || "",
