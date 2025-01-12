@@ -835,24 +835,19 @@ const exportApplicationsToCSV = async (req, res) => {
 
         return {
           "Application ID": application.applicationId || "",
-          "Date Created": formattedDate,
+          "First Name": user.firstName || "",
+          "Last Name": user.lastName || "",
+          Phone: user.phone || "",
+          Email: user.email || "",
+          Price: application.price || "",
           "Agent Assigned": application.assignedAdmin || "",
           "Current Status": application.currentStatus || "",
           "Color Status": colorStatus,
-          "Certificate ID": application.certificateId || "",
+          "Date Created": formattedDate,
           "Payment Status": application.paid ? "Paid" : "Unpaid",
-          Price: application.price || "",
-          Type: application.type || "",
+          "Contact Status": application.contactStatus || "",
+          "Call Attempts": application.contactAttempts || "",
           Notes: application.note || "",
-          // User Data
-          "First Name": user.firstName || "",
-          "Last Name": user.lastName || "",
-          Email: user.email || "",
-          Phone: user.phone || "",
-          Country: user.country || "",
-          Role: user.role || "",
-          "Terms Accepted": user.toc ? "Yes" : "No",
-          Verified: user.verified ? "Yes" : "No",
         };
       });
 
@@ -983,6 +978,57 @@ const assignApplicationToAdmin = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+const updateCallAttempts = async (req, res) => {
+  const { applicationId } = req.params;
+  const { contactAttempts } = req.body;
+
+  try {
+    const applicationRef = db.collection("applications").doc(applicationId);
+    const doc = await applicationRef.get();
+
+    if (!doc.exists) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+
+    await applicationRef.update({
+      contactAttempts,
+    });
+
+    res.status(200).json({
+      message: "Contact attempts updated successfully",
+      contactAttempts,
+    });
+  } catch (error) {
+    console.error("Error updating contact attempts:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const updateContactStatus = async (req, res) => {
+  const { applicationId } = req.params;
+  const { contactStatus } = req.body;
+
+  try {
+    const applicationRef = db.collection("applications").doc(applicationId);
+    const doc = await applicationRef.get();
+
+    if (!doc.exists) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+
+    await applicationRef.update({
+      contactStatus,
+    });
+
+    res.status(200).json({
+      message: "Contact status updated successfully",
+      contactStatus,
+    });
+  } catch (error) {
+    console.error("Error updating contact status:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
 
 module.exports = {
   getUserApplications,
@@ -1001,4 +1047,6 @@ module.exports = {
   getApplicationExpenses,
   addExpenseToApplication,
   assignApplicationToAdmin,
+  updateCallAttempts,
+  updateContactStatus,
 };

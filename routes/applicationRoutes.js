@@ -24,6 +24,8 @@ const {
   getApplicationExpenses,
   addExpenseToApplication,
   assignApplicationToAdmin,
+  updateCallAttempts,
+  updateContactStatus,
 } = require("../controllers/applicationController");
 
 router.delete("/deleteApplication/:applicationId", deleteApplication);
@@ -47,4 +49,6 @@ router.put("/discount/:applicationId", addDiscountToApplication);
 router.post("/expense/:applicationId", addExpenseToApplication);
 router.get("/expenses/:applicationId", getApplicationExpenses);
 router.put("/assign/:applicationId", assignApplicationToAdmin);
+router.put("/callAttempts/:applicationId", updateCallAttempts);
+router.put("/contactStatus/:applicationId", updateContactStatus);
 module.exports = router;
