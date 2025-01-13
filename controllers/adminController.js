@@ -508,6 +508,16 @@ const getDashboardStats = async (req, res) => {
     // Count total agents
     const totalAgents = users.filter((user) => user.role === "agent").length;
 
+    const colorStatusCount = {
+      hotLead: applications.filter((app) => app.color === "red").length,
+      warmLead: applications.filter((app) => app.color === "orange").length,
+      coldLead: applications.filter((app) => app.color === "gray").length,
+      others: applications.filter(
+        (app) =>
+          app.color !== "red" && app.color !== "orange" && app.color !== "gray"
+      ).length,
+    };
+
     return res.status(200).json({
       totalApplications,
       totalPayments: type === "general" ? 0 : totalPayments,
@@ -521,6 +531,7 @@ const getDashboardStats = async (req, res) => {
       pendingPayments,
       totalCustomers,
       totalAgents,
+      colorStatusCount,
     });
   } catch (error) {
     console.error("Error getting dashboard stats:", error);
