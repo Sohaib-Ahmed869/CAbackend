@@ -52,3 +52,4 @@ router.put("/assign/:applicationId", assignApplicationToAdmin);
 router.put("/callAttempts/:applicationId", updateCallAttempts);
 router.put("/contactStatus/:applicationId", updateContactStatus);
 module.exports = router;
+ 
