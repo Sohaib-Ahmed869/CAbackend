@@ -669,45 +669,77 @@ const deleteApplication = async (req, res) => {
       return res.status(500).json({ message: "Appli cation not found" });
     }
 
-    const { initialFormId, studentFormId, documentsFormId } =
-      applicationDoc.data();
+    //set the archive field to true
+    await applicationRef.update({
+      archive: true,
+    });
 
-    // Step 2: Delete connected forms
-    const deletePromises = [];
+    // const { initialFormId, studentFormId, documentsFormId } =
+    //   applicationDoc.data();
 
-    if (initialFormId) {
-      const initialFormRef = db
-        .collection("initialScreeningForms")
-        .doc(initialFormId);
-      deletePromises.push(initialFormRef.delete());
-    }
+    // // Step 2: Delete connected forms
+    // const deletePromises = [];
 
-    if (studentFormId) {
-      const studentFormRef = db
-        .collection("studentIntakeForms")
-        .doc(studentFormId);
-      deletePromises.push(studentFormRef.delete());
-    }
+    // if (initialFormId) {
+    //   const initialFormRef = db
+    //     .collection("initialScreeningForms")
+    //     .doc(initialFormId);
+    //   deletePromises.push(initialFormRef.delete());
+    // }
 
-    if (documentsFormId) {
-      const documentsFormRef = db.collection("documents").doc(documentsFormId);
-      deletePromises.push(documentsFormRef.delete());
-    }
+    // if (studentFormId) {
+    //   const studentFormRef = db
+    //     .collection("studentIntakeForms")
+    //     .doc(studentFormId);
+    //   deletePromises.push(studentFormRef.delete());
+    // }
 
-    // Step 3: Delete the application
-    deletePromises.push(applicationRef.delete());
+    // if (documentsFormId) {
+    //   const documentsFormRef = db.collection("documents").doc(documentsFormId);
+    //   deletePromises.push(documentsFormRef.delete());
+    // }
 
-    // Wait for all deletions to complete
-    await Promise.all(deletePromises);
+    // // Step 3: Delete the application
+    // deletePromises.push(applicationRef.delete());
+
+    // // Wait for all deletions to complete
+    // await Promise.all(deletePromises);
 
     res.status(200).json({
-      message: "Application and connected forms deleted successfully",
+      message: "Application and connected forms archived successfully",
     });
   } catch (error) {
     console.error("Error deleting application:", error.message);
     res
       .status(500)
       .json({ message: "Error deleting application and connected forms" });
+  }
+};
+
+const unArchiveApplication = async (req, res) => {
+  const { applicationId } = req.params;
+
+  try {
+    // Step 1: Get the application document
+    const applicationRef = db.collection("applications").doc(applicationId);
+    const applicationDoc = await applicationRef.get();
+
+    if (!applicationDoc.exists) {
+      return res.status(500).json({ message: "Application not found" });
+    }
+
+    //set the archive field to false
+    await applicationRef.update({
+      archive: false,
+    });
+
+    res.status(200).json({
+      message: "Application unarchived successfully",
+    });
+  } catch (error) {
+    console.error("Error unarchiving application:", error.message);
+
+    res.status(500).json({ message: "Error unarchiving application" });
   }
 };
 
@@ -1038,6 +1070,7 @@ module.exports = {
   markApplicationAsPaid,
   createNewApplicationByAgent,
   deleteApplication,
+  unArchiveApplication,
   dividePaymentIntoTwo,
   handleSquareWebhook,
   processPayment,

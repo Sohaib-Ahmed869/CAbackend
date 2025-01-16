@@ -26,9 +26,11 @@ const {
   assignApplicationToAdmin,
   updateCallAttempts,
   updateContactStatus,
+  unArchiveApplication
 } = require("../controllers/applicationController");
 
 router.delete("/deleteApplication/:applicationId", deleteApplication);
+router.put("/unArchiveApplication/:applicationId", unArchiveApplication);
 router.post("/new/:userId", createNewApplication);
 router.post("/newByAgent/:userId", createNewApplicationByAgent);
 router.get("/user/:userId", getUserApplications);
