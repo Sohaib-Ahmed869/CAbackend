@@ -642,6 +642,36 @@ const addColorToApplication = async (req, res) => {
   }
 };
 
+const updateStudentIntakeForm = async (req, res) => {
+  const { studentFormId } = req.params;
+  const updatedFormData = req.body;
+
+  try {
+    const formRef = db.collection("studentIntakeForms").doc(studentFormId);
+    const formDoc = await formRef.get();
+
+    if (!formDoc.exists) {
+      return res.status(404).json({ message: "Student intake form not found" });
+    }
+
+    // Remove qualification/certification fields from the update if they exist
+    const { lookingForWhatQualification, qualification, ...allowedUpdates } =
+      updatedFormData;
+
+    await formRef.update(allowedUpdates);
+
+    // Clear the applications cache since form data has changed
+    cache.del("applications");
+
+    res
+      .status(200)
+      .json({ message: "Student intake form updated successfully" });
+  } catch (error) {
+    console.error("Error updating student intake form:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   adminLogin,
   registerAdmin,
@@ -655,4 +685,5 @@ module.exports = {
   resendEmail,
   addColorToApplication,
   getAdminApplications,
+  updateStudentIntakeForm,
 };
