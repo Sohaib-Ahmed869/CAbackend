@@ -14,7 +14,8 @@ const {
   resendEmail,
   addColorToApplication,
   getAdminApplications,
-  updateStudentIntakeForm
+  updateStudentIntakeForm,
+  registerAssessor,
 } = require("../controllers/adminController");
 
 const router = express.Router();
@@ -31,6 +32,7 @@ router.get("/dashboardStats/:id", getDashboardStats);
 router.put("/addNoteToApplication/:applicationId", addNoteToApplication);
 router.post("/resend/:userId", resendEmail);
 router.put("/colorToApplication/:applicationId", addColorToApplication);
-router.put('/student-intake-form/:studentFormId', updateStudentIntakeForm);
+router.put("/student-intake-form/:studentFormId", updateStudentIntakeForm);
+router.post("/register-assessor", registerAssessor);
 
 module.exports = router;

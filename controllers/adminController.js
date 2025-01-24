@@ -42,6 +42,30 @@ const registerAdmin = async (req, res) => {
   }
 };
 
+//register assessor
+const registerAssessor = async (req, res) => {
+  const { email, password } = req.body;
+
+  try {
+    const user = await auth.createUser({
+      email,
+      password,
+    });
+
+    //store in users collection
+    await db.collection("users").doc(user.uid).set({
+      email,
+      role: "assessor",
+      id: user.uid,
+    });
+
+    res.status(200).json({ message: "Assessor registered successfully" });
+  } catch (error) {
+    console.log(error);
+    res.status(401).json({ message: "Error registering assessor" });
+  }
+};
+
 const getCustomers = async (req, res) => {
   try {
     const snapshot = await db
@@ -686,4 +710,5 @@ module.exports = {
   addColorToApplication,
   getAdminApplications,
   updateStudentIntakeForm,
+  registerAssessor,
 };

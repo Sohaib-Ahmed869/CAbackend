@@ -26,7 +26,9 @@ const {
   assignApplicationToAdmin,
   updateCallAttempts,
   updateContactStatus,
-  unArchiveApplication
+  unArchiveApplication,
+  addAssessorNoteToApplication,
+  sendToRTO,
 } = require("../controllers/applicationController");
 
 router.delete("/deleteApplication/:applicationId", deleteApplication);
@@ -53,5 +55,6 @@ router.get("/expenses/:applicationId", getApplicationExpenses);
 router.put("/assign/:applicationId", assignApplicationToAdmin);
 router.put("/callAttempts/:applicationId", updateCallAttempts);
 router.put("/contactStatus/:applicationId", updateContactStatus);
+router.put("/assessorNote/:applicationId", addAssessorNoteToApplication);
+router.put("/sendToRTO/:applicationId", sendToRTO);
 module.exports = router;
- 

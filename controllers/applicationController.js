@@ -539,11 +539,11 @@ const markApplicationAsPaid = async (req, res, isInternal = false) => {
 
       //update the application status
       await applicationRef.update({
-        currentStatus: "Sent to RTO",
+        currentStatus: "Sent to Assessor",
         status: [
           ...applicationDoc.data().status,
           {
-            statusname: "Sent to RTO",
+            statusname: "Sent to Assessor",
             time: new Date().toISOString(),
           },
         ],
@@ -564,11 +564,11 @@ const markApplicationAsPaid = async (req, res, isInternal = false) => {
         amount_paid: applicationData.price,
       });
       await applicationRef.update({
-        currentStatus: "Sent to RTO",
+        currentStatus: "Sent to Assessor",
         status: [
           ...applicationDoc.data().status,
           {
-            statusname: "Sent to RTO",
+            statusname: "Sent to Assessor",
             time: new Date().toISOString(),
           },
         ],
@@ -657,6 +657,43 @@ async function sendPaymentConfirmationEmails(applicationId) {
     await sendEmail(adminData.email, adminEmailBody, "New Payment Processed");
   }
 }
+
+async function SendMailToAssessor(applicationId) {
+  const applicationRef = db.collection("applications").doc(applicationId);
+  const applicationDoc = await applicationRef.get();
+
+  const applicationData = applicationDoc.data();
+
+  // Get user details
+  const userRef = db.collection("users").doc(applicationData.userId);
+  const userDoc = await userRef.get();
+  const userData = userDoc.data();
+
+  // Send email to users with role assessor
+  const assessorSnapshot = await db
+    .collection("users")
+    .where("role", "==", "assessor")
+    .get();
+
+  const assessorEmailBody = `
+      <h2>New Application Recieved</h2>
+      <p>A new application has been recieved for assessment.</p>
+      <p><strong>Details:</strong></p>
+      <ul>
+        <li>Application ID: ${applicationId}</li>
+        <li>User: ${userData.firstName} ${userData.lastName}</li>
+        </ul>
+    `;
+  for (const assessorDoc of assessorSnapshot.docs) {
+    const assessorData = assessorDoc.data();
+    await sendEmail(
+      assessorData.email,
+      assessorEmailBody,
+      "New Application Recieved"
+    );
+  }
+}
+
 const deleteApplication = async (req, res) => {
   const { applicationId } = req.params;
 
@@ -800,6 +837,15 @@ const processPayment = async (req, res) => {
 
       // Send confirmation emails
       await sendPaymentConfirmationEmails(applicationId);
+
+      //if the updated status is sent to Accessor then send email to assessor
+      const applicationRef = db.collection("applications").doc(applicationId);
+      const applicationDoc = await applicationRef.get();
+      const applicationData = applicationDoc.data();
+
+      if (applicationData.currentStatus === "Sent to Assessor") {
+        await SendMailToAssessor(applicationId);
+      }
 
       return res.json({ success: true });
     } else {
@@ -1062,6 +1108,65 @@ const updateContactStatus = async (req, res) => {
   }
 };
 
+const addAssessorNoteToApplication = async (req, res) => {
+  const { applicationId } = req.params;
+  const { note } = req.body;
+  const assessorNote = note;
+  try {
+    const applicationRef = db.collection("applications").doc(applicationId);
+    const doc = await applicationRef.get();
+
+    if (!doc.exists) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+
+    await applicationRef.update({
+      assessorNote,
+    });
+
+    res.status(200).json({
+      message: "Assessor note added successfully",
+      assessorNote,
+    });
+  } catch (error) {
+    console.error("Error adding assessor note:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const sendToRTO = async (req, res) => {
+  const { applicationId } = req.params;
+
+  try {
+    const applicationRef = db.collection("applications").doc(applicationId);
+    const doc = await applicationRef.get();
+
+    if (!doc.exists) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+
+    await applicationRef.update({
+      currentStatus: "Sent to RTO",
+      status: [
+        ...doc.data().status,
+        {
+          statusname: "Sent to RTO",
+          time: new Date().toISOString(),
+        },
+      ],
+    });
+
+    res.status(200).json({
+      message: "Application sent to RTO successfully",
+    });
+  } catch (error) {
+    console.error("Error sending application to RTO:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+
+
 module.exports = {
   getUserApplications,
   createNewApplication,
@@ -1082,4 +1187,6 @@ module.exports = {
   assignApplicationToAdmin,
   updateCallAttempts,
   updateContactStatus,
+  addAssessorNoteToApplication,
+  sendToRTO,
 };
