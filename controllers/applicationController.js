@@ -619,29 +619,29 @@ async function sendPaymentConfirmationEmails(applicationId) {
     await sendEmail(userData.email, userEmailBody, "Payment Confirmation");
   }
 
-  // Send email to admin
-  const adminSnapshot = await db
-    .collection("users")
-    .where("role", "==", "admin")
-    .get();
-  for (const adminDoc of adminSnapshot.docs) {
-    const adminData = adminDoc.data();
-    const adminToken = await auth.createCustomToken(adminData.id);
-    const adminUrl = `${process.env.CLIENT_URL}/admin?token=${adminToken}`;
+  // // Send email to admin
+  // const adminSnapshot = await db
+  //   .collection("users")
+  //   .where("role", "==", "admin")
+  //   .get();
+  // for (const adminDoc of adminSnapshot.docs) {
+  //   const adminData = adminDoc.data();
+  //   const adminToken = await auth.createCustomToken(adminData.id);
+  //   const adminUrl = `${process.env.CLIENT_URL}/admin?token=${adminToken}`;
 
-    const discount = applicationData.discount || 0;
+  const discount = applicationData.discount || 0;
+  const emailaDMIN = "applications@certifiedaustralia.com.au";
+  let price = applicationData.price;
 
-    let price = applicationData.price;
+  if (applicationData.partialScheme) {
+    price = applicationData.amount_paid;
+  } else if (discount > 0) {
+    price = price - discount;
+  } else {
+    price = price;
+  }
 
-    if (applicationData.partialScheme) {
-      price = applicationData.amount_paid;
-    } else if (discount > 0) {
-      price = price - discount;
-    } else {
-      price = price;
-    }
-
-    const adminEmailBody = `
+  const adminEmailBody = `
       <h2>New Payment Received</h2>
       <p>A payment has been processed for application ${applicationId}.</p>
       <p><strong>Details:</strong></p>
@@ -652,10 +652,9 @@ async function sendPaymentConfirmationEmails(applicationId) {
         
         <li>Date: ${new Date().toISOString()}</li>
       </ul>
-      <a href="${adminUrl}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">View Details</a>
+      
     `;
-    await sendEmail(adminData.email, adminEmailBody, "New Payment Processed");
-  }
+  await sendEmail(emailaDMIN, adminEmailBody, "New Payment Processed");
 }
 
 async function SendMailToAssessor(applicationId) {
@@ -1164,8 +1163,6 @@ const sendToRTO = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-
-
 
 module.exports = {
   getUserApplications,

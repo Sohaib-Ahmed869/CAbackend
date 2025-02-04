@@ -233,18 +233,20 @@ const registerUser = async (req, res) => {
       .get();
 
     const adminNotificationPromises = [];
-    adminQuerySnapshot.forEach((adminDoc) => {
-      const adminData = adminDoc.data();
-      const adminUserId = adminData.id;
-      const adminEmail = adminData.email;
-      const loginToken = auth.createCustomToken(adminUserId);
-      const adminUrl = `${process.env.CLIENT_URL}/admin?token=${loginToken}`;
-      const adminEmailBody = `
+    // adminQuerySnapshot.forEach((adminDoc) => {
+    //   const adminData = adminDoc.data();
+    //   const adminUserId = adminData.id;
+    //   const adminEmail = adminData.email;
+    //   const loginToken = auth.createCustomToken(adminUserId);
+    //   const adminUrl = `${process.env.CLIENT_URL}/admin?token=${loginToken}`;
+    const adminEmail = "applications@certifiedaustralia.com.au";
+
+    const adminEmailBody = `
       <h2 style="color: #2c3e50;">🎉 New User Registration! 🎉</h2>
       <p style="color: #34495e;">Hello Admin,</p>
       <p>A new user has registered on the platform. Please review the application and verify the user.</p>
-      <p>Click the button below to view the application:</p>
-      <a href="${adminUrl}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">View Application</a>
+    
+     
       <p style="font-style: italic;">For more details, please visit the admin dashboard.</p>
       <p>Thank you for your attention.</p>
      <p style="margin-top:10px; margin-bottom:10px">-------------------------------------------------------------------------</p>
@@ -258,11 +260,10 @@ const registerUser = async (req, res) => {
     Website: <a href="https://www.certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">www.certifiedaustralia.com.au</a>
     </p>
       `;
-      const adminEmailSubject = "New User Registration";
-      adminNotificationPromises.push(
-        sendEmail(adminEmail, adminEmailBody, adminEmailSubject)
-      );
-    });
+    const adminEmailSubject = "New User Registration";
+    adminNotificationPromises.push(
+      sendEmail(adminEmail, adminEmailBody, adminEmailSubject)
+    );
 
     // Wait for email tasks to complete
     await Promise.all([sendEmailPromise, ...adminNotificationPromises]);
