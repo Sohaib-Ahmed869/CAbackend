@@ -631,6 +631,7 @@ async function sendPaymentConfirmationEmails(applicationId) {
 
   const discount = applicationData.discount || 0;
   const emailaDMIN = "applications@certifiedaustralia.com.au";
+  const emailAdmin2 = "ceo@certifiedaustralia.com.au";
   let price = applicationData.price;
 
   if (applicationData.partialScheme) {
@@ -655,6 +656,7 @@ async function sendPaymentConfirmationEmails(applicationId) {
       
     `;
   await sendEmail(emailaDMIN, adminEmailBody, "New Payment Processed");
+  await sendEmail(emailAdmin2, adminEmailBody, "New Payment Processed");
 }
 
 async function SendMailToAssessor(applicationId) {
