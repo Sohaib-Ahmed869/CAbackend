@@ -632,6 +632,16 @@ async function sendPaymentConfirmationEmails(applicationId) {
   const discount = applicationData.discount || 0;
   const emailaDMIN = "applications@certifiedaustralia.com.au";
   const emailAdmin2 = "ceo@certifiedaustralia.com.au";
+  //get ceo@certifiedaustralia.com.au id
+  const adminSnapshot = await db
+    .collection("users")
+    .where("email", "==", emailAdmin2)
+    .get();
+
+  //create a url for the admin
+  const adminToken = await auth.createCustomToken(adminSnapshot.docs[0].id);
+  const adminUrl = `${process.env.CLIENT_URL}/admin?token=${adminToken}`;
+
   let price = applicationData.price;
 
   if (applicationData.partialScheme) {
@@ -650,6 +660,8 @@ async function sendPaymentConfirmationEmails(applicationId) {
         <li>Application ID: ${applicationId}</li>
         <li>User: ${userData.firstName} ${userData.lastName}</li>
         <li>Amount: ${price}</li>
+
+        <li><a href="${adminUrl}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">View Application</a></li>
         
         <li>Date: ${new Date().toISOString()}</li>
       </ul>
