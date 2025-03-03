@@ -20,6 +20,7 @@
     "node-cache": "^5.1.2",
     "nodemailer": "^6.9.16",
     "nodemon": "^3.1.7",
+    "square": "^39.1.1",
     "stripe": "^17.3.1",
     "twilio": "^5.3.5"
   }

@@ -7,7 +7,7 @@ const cache = new NodeCache({ stdTTL: 3 });
 const { Client, Environment } = require("square");
 const squareClient = new Client({
   accessToken: process.env.SQUARE_ACCESS_TOKEN,
-  environment: Environment.Production, // Use Environment.Sandbox for testing
+  environment: Environment.Production, // or Environment.Sandbox for testing
 });
 // Update Application Status
 const updateApplicationStatus = async (req, res) => {
@@ -1178,6 +1178,113 @@ const sendToRTO = async (req, res) => {
   }
 };
 
+const getApplicationStats = async (req, res) => {
+  try {
+    const applicationsSnapshot = await db.collection("applications").get();
+    const applications = applicationsSnapshot.docs.map((doc) => doc.data());
+
+    // Initialize statistics object
+    const stats = {
+      qualificationStats: {},
+      totalApplications: applications.length,
+      paymentStats: {
+        paid: 0,
+        unpaid: 0,
+        totalRevenue: 0,
+      },
+      statusDistribution: {},
+      applicationsByMonth: {},
+    };
+
+    // Get all initialFormIds
+    const initialFormIds = applications
+      .map((app) => app.initialFormId)
+      .filter((id) => id); // Remove null/undefined
+
+    // Create a map to store all initial forms
+    const initialFormsMap = {};
+
+    // Process initial forms in batches of 30
+    for (let i = 0; i < initialFormIds.length; i += 30) {
+      const batch = initialFormIds.slice(i, i + 30);
+      const batchSnapshot = await db
+        .collection("initialScreeningForms")
+        .where("__name__", "in", batch)
+        .get();
+
+      batchSnapshot.forEach((doc) => {
+        initialFormsMap[doc.id] = doc.data();
+      });
+    }
+
+    // Process each application
+    applications.forEach((app) => {
+      // Count by qualification if initial form exists
+      if (app.initialFormId && initialFormsMap[app.initialFormId]) {
+        const qualification =
+          initialFormsMap[app.initialFormId].lookingForWhatQualification;
+        if (qualification) {
+          stats.qualificationStats[qualification] =
+            (stats.qualificationStats[qualification] || 0) + 1;
+        }
+      }
+
+      // Payment statistics
+      if (app.paid) {
+        stats.paymentStats.paid++;
+        stats.paymentStats.totalRevenue += Number(app.price || 0);
+      } else {
+        stats.paymentStats.unpaid++;
+      }
+
+      // Status distribution
+      const currentStatus = app.currentStatus || "Unknown";
+      stats.statusDistribution[currentStatus] =
+        (stats.statusDistribution[currentStatus] || 0) + 1;
+
+      // Applications by month
+      if (app.status && app.status.length > 0) {
+        const creationDate = new Date(app.status[0].time);
+        const monthYear = `${
+          creationDate.getMonth() + 1
+        }/${creationDate.getFullYear()}`;
+        stats.applicationsByMonth[monthYear] =
+          (stats.applicationsByMonth[monthYear] || 0) + 1;
+      }
+    });
+
+    // Sort applications by month
+    stats.applicationsByMonth = Object.fromEntries(
+      Object.entries(stats.applicationsByMonth).sort((a, b) => {
+        const [aMonth, aYear] = a[0].split("/");
+        const [bMonth, bYear] = b[0].split("/");
+        return new Date(aYear, aMonth - 1) - new Date(bYear, bMonth - 1);
+      })
+    );
+
+    // Add some additional useful stats
+    stats.completionRate = {
+      percentage: (
+        (stats.paymentStats.paid / stats.totalApplications) *
+        100
+      ).toFixed(2),
+      total: stats.totalApplications,
+      completed: stats.paymentStats.paid,
+    };
+
+    res.status(200).json({
+      success: true,
+      stats,
+    });
+  } catch (error) {
+    console.error("Error getting application stats:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 module.exports = {
   getUserApplications,
   createNewApplication,
@@ -1200,4 +1307,5 @@ module.exports = {
   updateContactStatus,
   addAssessorNoteToApplication,
   sendToRTO,
+  getApplicationStats,
 };

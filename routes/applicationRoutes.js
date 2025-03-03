@@ -29,6 +29,7 @@ const {
   unArchiveApplication,
   addAssessorNoteToApplication,
   sendToRTO,
+  getApplicationStats
 } = require("../controllers/applicationController");
 
 router.delete("/deleteApplication/:applicationId", deleteApplication);
@@ -57,4 +58,5 @@ router.put("/callAttempts/:applicationId", updateCallAttempts);
 router.put("/contactStatus/:applicationId", updateContactStatus);
 router.put("/assessorNote/:applicationId", addAssessorNoteToApplication);
 router.put("/sendToRTO/:applicationId", sendToRTO);
+router.get("/stats", getApplicationStats);
 module.exports = router;
