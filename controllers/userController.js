@@ -135,8 +135,8 @@ const registerUser = async (req, res) => {
 
     const applicationRef = db.collection("applications").doc();
     batch.set(applicationRef, {
-      id: applicationRef.id,
-      applicationId: generateAppID,
+      id: applicationRef.id, // Automatically generated document ID
+      applicationId: generateAppID, // Generated application ID
       userId,
       initialFormId: initialFormRef.id,
       studentFormId: studentFormRef.id,
@@ -148,12 +148,42 @@ const registerUser = async (req, res) => {
           time: new Date().toISOString(),
         },
       ],
-      verified: true,
-      paid: false,
-      documents: {},
-      currentStatus: "Student Intake Form",
-      type,
-      price,
+      verified: true, // Marks if the application is verified
+      paid: false, // Payment status
+      documents: {}, // Placeholder for uploaded documents
+      currentStatus: "Student Intake Form", // Tracks the current status of the application
+      type, // Application type
+      price, // Price of the application
+      applicationStatus: [
+        {
+          statusname: "Student Intake Form",
+          completed: false,
+          time: new Date().toISOString(),
+        },
+        {
+          statusname: "payment",
+          installmentsApplied: false,
+          paid: false,
+          time: new Date().toISOString(),
+        },
+        {
+          statusname: "documents uploaded",
+          completed: false,
+          time: new Date().toISOString(),
+        },
+        {
+          statusname: "sent for verification",
+          time: new Date().toISOString(),
+        },
+        {
+          statusname: "verified",
+          time: new Date().toISOString(),
+        },
+        {
+          statusname: "completed",
+          time: new Date().toISOString(),
+        },
+      ],
     });
 
     // Commit the batch
@@ -431,6 +461,41 @@ const registerUserbyAgent = async (req, res) => {
       type: type,
       price: price,
       agentId: agentId,
+      applicationStatus: [
+        {
+          statusname: "Student Intake Form",
+          completed: false,
+          time: new Date().toISOString(),
+        },
+        {
+          statusname: "payment",
+          installments: [
+            {
+              payment1: false,
+              payment2: false,
+            },
+          ],
+          paid: false,
+          time: new Date().toISOString(),
+        },
+        {
+          statusname: "documents uploaded",
+          completed: false,
+          time: new Date().toISOString(),
+        },
+        {
+          statusname: "sent for verification",
+          time: new Date().toISOString(),
+        },
+        {
+          statusname: "verified",
+          time: new Date().toISOString(),
+        },
+        {
+          statusname: "completed",
+          time: new Date().toISOString(),
+        },
+      ],
     });
 
     //update the id in the application form
