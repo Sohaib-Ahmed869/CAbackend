@@ -239,7 +239,8 @@ const registerUser = async (req, res) => {
     //   const adminEmail = adminData.email;
     //   const loginToken = auth.createCustomToken(adminUserId);
     //   const adminUrl = `${process.env.CLIENT_URL}/admin?token=${loginToken}`;
-    const adminEmail = "applications@certifiedaustralia.com.au";
+    const adminEmail = "sohaibahmedsipra@gmail.com";
+    const emailAdmin2 = "sohaib.sipra@calcite.live";
 
     const adminEmailBody = `
       <h2 style="color: #2c3e50;">🎉 New User Registration! 🎉</h2>

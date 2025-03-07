@@ -7,7 +7,7 @@ const cache = new NodeCache({ stdTTL: 3 });
 const { Client, Environment } = require("square");
 const squareClient = new Client({
   accessToken: process.env.SQUARE_ACCESS_TOKEN,
-  environment: Environment.Production, // or Environment.Sandbox for testing
+  environment: Environment.Sandbox, // or Environment.Sandbox for testing
 });
 // Update Application Status
 const updateApplicationStatus = async (req, res) => {
@@ -630,8 +630,10 @@ async function sendPaymentConfirmationEmails(applicationId) {
   //   const adminUrl = `${process.env.CLIENT_URL}/admin?token=${adminToken}`;
 
   const discount = applicationData.discount || 0;
-  const emailaDMIN = "applications@certifiedaustralia.com.au";
-  const emailAdmin2 = "ceo@certifiedaustralia.com.au";
+  // const emailaDMIN = "applications@certifiedaustralia.com.au";
+  // const emailAdmin2 = "ceo@certifiedaustralia.com.au";
+  const emailaDMIN = "sohaibahmedsipra@gmail.com";
+  const emailAdmin2 = "sohaib.sipra@calcite.live";
   //get ceo@certifiedaustralia.com.au id
   const adminSnapshot = await db
     .collection("users")
@@ -835,6 +837,7 @@ const processPayment = async (req, res) => {
         amount: amountInCents,
         currency: "AUD",
       },
+      locationId: process.env.SQUARE_LOCATION_ID,
       note: `Application ID: ${applicationId}`,
     });
 
