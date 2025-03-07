@@ -794,31 +794,19 @@ const unArchiveApplication = async (req, res) => {
     res.status(500).json({ message: "Error unarchiving application" });
   }
 };
+
 const dividePaymentIntoTwo = async (req, res) => {
+  // Divide the payment into two parts
+  // First part is the initial payment
+  // Second part is the remaining balance
+  // The initial payment is in body
+  // The remaining balance is calculated from the application
   const { applicationId } = req.params;
   const { payment1, payment2 } = req.body;
 
   try {
+    //update the application with the payment details
     const applicationRef = db.collection("applications").doc(applicationId);
-    const applicationDoc = await applicationRef.get();
-
-    if (!applicationDoc.exists) {
-      return res.status(404).json({ message: "Application not found." });
-    }
-
-    const applicationData = applicationDoc.data();
-    const userId = applicationData.userId;
-    const applicationIDToMail = applicationData.applicationId;
-
-    const userRef = db.collection("users").doc(userId);
-    const userDoc = await userRef.get();
-
-    if (!userDoc.exists) {
-      return res.status(404).json({ message: "User not found." });
-    }
-
-    const userEmail = userDoc.data().email;
-    const userName = `${userDoc.data().firstName} ${userDoc.data().lastName}`;
 
     await applicationRef.update({
       payment1: payment1,
@@ -827,195 +815,13 @@ const dividePaymentIntoTwo = async (req, res) => {
       full_paid: false,
       amount_paid: 0,
     });
-    const token = await auth.createCustomToken(applicationData.userId);
-    const loginUrl = `${process.env.CLIENT_URL}/existing-applications?token=${token}`;
-    // Email Template
-    const emailBody = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>Payment Installment Plan</title>
-        <style>
-            body {
-                font-family: Arial, sans-serif;
-                background-color: #f9f9f9;
-                margin: 0;
-                padding: 0;
-            }
-            .email-container {
-                max-width: 600px;
-                margin: 20px auto;
-                background-color: #f7f7f7;
-                padding: 40px;
-                border-radius: 8px;
-                box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.3) !important;
-            }
-            .email-header {
-                text-align: center;
-                padding-bottom: 20px;
-            }
-            .email-header img {
-                max-width: 150px;
-            }
-            .email-content {
-                color: #333;
-                font-size: 16px;
-                line-height: 1.5;
-            }
-            .payment-breakdown {
-                background-color: #f5f5f5;
-                padding: 10px;
-                border-radius: 5px;
-                margin-top: 15px;
-            }
-            .payment-breakdown p {
-                margin: 5px 0;
-            }
-            .payment-button {
-                display: inline-block;
-                background-color: #009934;
-                color: #fff !important;
-                padding: 12px 20px;
-                text-decoration: none;
-                border-radius: 5px;
-                margin-top: 20px;
-                font-size: 16px;
-            }
-            .footer {
-                margin-top: 20px;
-                text-align: center;
-                font-size: 14px;
-                color: #666;
-            }
-            .footer a {
-                color: #007bff;
-                text-decoration: none;
-            }
-        </style>
-    </head>
-    <body>
 
-    <div class="email-container">
-        <div class="email-header">
-          <img src="https://ci3.googleusercontent.com/mail-sig/AIorK4wUrVPXmmjHfiEam1_OOvAyse2Vb-ygiKj2i4zvyK9wTcDIVKIhiG2sjtDIT8vUcuyqK5kdTlu9NrOm" alt="Company Logo" style="width: 150px; height: auto; margin-bottom: 20px;">
-          <h1>Payment Installment Plan</h1>
-        </div>
-
-        <div class="email-content">
-            <p>Dear <strong>${userName}</strong>,</p>
-            <p>We are pleased to inform you that your payment for application <strong>${applicationIDToMail}</strong> has been successfully divided into two installments.</p>
-
-            <div class="payment-breakdown">
-                <p><strong>First Payment:</strong> $${payment1}</p>
-                <p><strong>Second Payment:</strong> $${payment2}</p>
-            </div>
-
-            <p>Please ensure the remaining amount is paid at your earliest convenience.</p>
-            <p>If you have any questions, feel free to reach out to us.</p>
-
-            <a href="${loginUrl}" class="payment-button">Make a Payment</a>
-        </div>
-
-        <div class="footer">
-            <p>Best regards,<br><strong>The Certified Australia Team</strong></p>
-            <p>Contact us: <a href="mailto:info@certifiedaustralia.com.au">info@certifiedaustralia.com.au</a> | <a href="tel:1300044927">1300 044 927</a></p>
-            <p><a href="https://www.certifiedaustralia.com.au">www.certifiedaustralia.com.au</a></p>
-        </div>
-    </div>
-
-    </body>
-    </html>
-    `;
-
-    await sendEmail(
-      userEmail,
-      emailBody,
-      "Your Payment Installment Plan Has Been Initiated"
-    );
-
-    res
-      .status(200)
-      .json({ message: "Payment divided successfully and emails sent." });
+    res.status(200).json({ message: "Payment divided successfully" });
   } catch (error) {
     console.error("Error dividing payment:", error.message);
     res.status(500).json({ message: "Error dividing payment" });
   }
 };
-
-// const dividePaymentIntoTwo = async (req, res) => {
-//   const { applicationId } = req.params;
-//   const { payment1, payment2, userEmail } = req.body; // Ensure userEmail is sent in request
-
-//   try {
-//     // Update the application with the payment details
-//     const applicationRef = db.collection("applications").doc(applicationId);
-//     const applicationDoc = await applicationRef.get();
-
-//     await applicationRef.update({
-//       payment1: payment1,
-//       payment2: payment2,
-//       partialScheme: true,
-//       full_paid: false,
-//       amount_paid: 0,
-//     });
-
-//     //  Send Email to User
-//     let emailSubject = "Your Payment has been Divided Successfully!";
-//     let emailBody = `
-//       Dear User,
-//       <br /><br />
-//       Your payment has been successfully divided into two parts:
-//       <br />
-//       - **First Payment:** $${payment1}
-//       <br />
-//       - **Second Payment:** $${payment2}
-//       <br /><br />
-//       Please complete your remaining payment at the earliest.
-//       <br /><br />
-//         <p>
-//     <strong>Best Regards,</strong><br>
-//     The Certified Australia Team<br>
-//     Email: <a href="mailto:info@certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">info@certifiedaustralia.com.au</a><br>
-//     Phone: <a href="tel:1300044927" style="color: #3498db; text-decoration: none;">1300 044 927</a><br>
-//     Website: <a href="https://www.certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">www.certifiedaustralia.com.au</a>
-//     </p>
-//     `;
-
-//     await sendEmail(email, emailBody, emailSubject);
-
-//     //  Send Email to Admin
-//     emailSubject = `Payment Split for Application ${applicationId}`;
-//     emailBody = `
-//       Dear Admin,
-//       <br /><br />
-//       The payment for application **${applicationId}** has been divided successfully.
-//       <br />
-//       - **First Payment:** $${payment1}
-//       <br />
-//       - **Second Payment:** $${payment2}
-//       <br /><br />
-//       Please review the application details.
-//       <br /><br />
-//    <p>
-//     <strong>Best Regards,</strong><br>
-//     The Certified Australia Team<br>
-//     Email: <a href="mailto:info@certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">info@certifiedaustralia.com.au</a><br>
-//     Phone: <a href="tel:1300044927" style="color: #3498db; text-decoration: none;">1300 044 927</a><br>
-//     Website: <a href="https://www.certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">www.certifiedaustralia.com.au</a>
-//     </p>
-//     `;
-
-//     await sendEmail(email, emailBody, emailSubject);
-
-//     res
-//       .status(200)
-//       .json({ message: "Payment divided successfully and emails sent." });
-//   } catch (error) {
-//     console.error("Error dividing payment:", error.message);
-//     res.status(500).json({ message: "Error dividing payment" });
-//   }
-// };
 
 const processPayment = async (req, res) => {
   const { applicationId } = req.params;
@@ -1025,7 +831,7 @@ const processPayment = async (req, res) => {
     const amountInCents = Math.round(parseFloat(price) * 100);
 
     const payment = await squareClient.paymentsApi.createPayment({
-      sourceId,
+      sourceId: 'cnon:card-nonce-ok',
       idempotencyKey: `${applicationId}-${Date.now()}`,
       amountMoney: {
         amount: amountInCents,
@@ -1168,133 +974,18 @@ const addDiscountToApplication = async (req, res) => {
       return res.status(404).json({ message: "Application not found" });
     }
 
-    const applicationData = doc.data();
-    const userId = applicationData.userId;
-    const applicationIDToMail = applicationData.applicationId;
-
-    const userRef = db.collection("users").doc(userId);
-    const userDoc = await userRef.get();
-
-    if (!userDoc.exists) {
-      return res.status(404).json({ message: "User not found." });
-    }
-
-    const userEmail = userDoc.data().email;
-    const userName = `${userDoc.data().firstName} ${userDoc.data().lastName}`;
-
-    await applicationRef.update({ discount: discount });
-
-    // Email Template
-    const emailBody = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>Discount Applied</title>
-        <style>
-            body {
-                font-family: Arial, sans-serif;
-                background-color: #f9f9f9;
-                margin: 0;
-                padding: 0;
-            }
-            .email-container {
-                max-width: 600px;
-                margin: 20px auto;
-                background-color: #f7f7f7;
-                padding: 40px;
-                border-radius: 8px;
-                box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.3) !important;
-            }
-            .email-header {
-                text-align: center;
-                padding-bottom: 20px;
-            }
-            .email-content {
-                color: #333;
-                font-size: 16px;
-                line-height: 1.5;
-            }
-            .discount-box {
-                background-color: #f5f5f5;
-                padding: 10px;
-                border-radius: 5px;
-                margin-top: 15px;
-            }
-            .discount-box p {
-                margin: 5px 0;
-            }
-            .footer {
-                margin-top: 20px;
-                text-align: center;
-                font-size: 14px;
-                color: #666;
-            }
-            .footer a {
-                color: #007bff;
-                text-decoration: none;
-            }
-        </style>
-    </head>
-    <body>
-
-    <div class="email-container">
-        <div class="email-header">
-          <img src="https://ci3.googleusercontent.com/mail-sig/AIorK4wUrVPXmmjHfiEam1_OOvAyse2Vb-ygiKj2i4zvyK9wTcDIVKIhiG2sjtDIT8vUcuyqK5kdTlu9NrOm" alt="Company Logo" style="width: 150px; height: auto; margin-bottom: 20px;">
-
-          <h1>Discount Applied Successfully</h1>
-        </div>
-
-        <div class="email-content">
-            <p>Dear <strong>${userName}</strong>,</p>
-            <p>We are pleased to inform you that a discount has been applied to your application <strong>${applicationIDToMail}</strong>.</p>
-
-            <div class="discount-box">
-                <p><strong>Discount Amount:</strong> $${discount}</p>
-            </div>
-
-            <p>If you have any questions, feel free to reach out to us.</p>
-        </div>
-
-        <div class="footer">
-            <p>Best regards,<br><strong>The Certified Australia Team</strong></p>
-            <p>Contact us: <a href="mailto:info@certifiedaustralia.com.au">info@certifiedaustralia.com.au</a> | <a href="tel:1300044927">1300 044 927</a></p>
-            <p><a href="https://www.certifiedaustralia.com.au">www.certifiedaustralia.com.au</a></p>
-        </div>
-    </div>
-
-    </body>
-    </html>
-    `;
-
-    // Send email to the user
-    await sendEmail(
-      userEmail,
-      emailBody,
-      "Discount Applied to Your Application"
-    );
-
-    // Send email to the admin
-    const adminEmail = "admin@certifiedaustralia.com.au";
-    const adminEmailBody = `
-      <p>Hello Admin,</p>
-      <p>A discount of <strong>$${discount}</strong> has been applied to application <strong>${applicationIDToMail}</strong> for user <strong>${userName}</strong> (${userEmail}).</p>
-      <p>Please review the updated application details in the system.</p>
-    `;
-    await sendEmail(
-      adminEmail,
-      adminEmailBody,
-      "Discount Applied - Admin Notification"
-    );
+    await applicationRef.update({
+      discount: discount,
+    });
 
     res.status(200).json({
-      message:
-        "Discount applied successfully, and emails sent to user and admin.",
+      message: "Discount applied successfully",
+
       discount,
     });
   } catch (error) {
     console.error("Error applying discount:", error);
-    res.status(500).json({ message: "Error applying discount" });
+    res.status(500).json({ message: error.message });
   }
 };
 
