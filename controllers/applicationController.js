@@ -1044,7 +1044,7 @@ const getApplicationExpenses = async (req, res) => {
   } catch (error) {
     console.error("Error getting expenses:", error);
     res.status(500).json({ message: error.message });
-  }
+  } 
 };
 
 const assignApplicationToAdmin = async (req, res) => {
