@@ -23,8 +23,7 @@ const sendEmail = async (recipientEmail, emailBody, emailSubject) => {
           <p>${emailBody}</p>
         </div>
         <div>
-          <img src="https://ci3.googleusercontent.com/mail-sig/AIorK4wUrVPXmmjHfiEam1_OOvAyse2Vb-ygiKj2i4zvyK9wTcDIVKIhiG2sjtDIT8vUcuyqK5kdTlu9NrOm" alt="Company Logo" style="width: 150px; height: auto; margin-bottom: 20px;">
-        </div>`, // HTML body (optional, if you want to format it)
+         </div>`, // HTML body (optional, if you want to format it)
     };
 
     // Send the email

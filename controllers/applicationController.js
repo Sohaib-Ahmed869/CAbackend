@@ -4,6 +4,9 @@ const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const { sendEmail } = require("../utils/emailUtil");
 const NodeCache = require("node-cache");
 const cache = new NodeCache({ stdTTL: 3 });
+const {
+  checkApplicationStatusAndSendEmails,
+} = require("../utils/applicationEmailService");
 const { Client, Environment } = require("square");
 const squareClient = new Client({
   accessToken: process.env.SQUARE_ACCESS_TOKEN,
@@ -499,8 +502,8 @@ const handleSquareWebhook = async (req, res) => {
         paymentId: payment.id,
       });
 
-      // Send confirmation emails
-      await sendPaymentConfirmationEmails(applicationId);
+      // Use the comprehensive email service instead of the old function
+      await checkApplicationStatusAndSendEmails(applicationId, "payment_made");
 
       res.status(200).json({ received: true });
     } else {
@@ -574,6 +577,9 @@ const markApplicationAsPaid = async (req, res, isInternal = false) => {
         ],
       });
     }
+
+    // Use the comprehensive email service
+    await checkApplicationStatusAndSendEmails(applicationId, "payment_made");
 
     if (!isInternal) {
       return res.status(200).json({ message: "Application marked as paid" });
@@ -831,7 +837,7 @@ const processPayment = async (req, res) => {
     const amountInCents = Math.round(parseFloat(price) * 100);
 
     const payment = await squareClient.paymentsApi.createPayment({
-      sourceId: 'cnon:card-nonce-ok',
+      sourceId: "cnon:card-nonce-ok",
       idempotencyKey: `${applicationId}-${Date.now()}`,
       amountMoney: {
         amount: amountInCents,
@@ -851,17 +857,8 @@ const processPayment = async (req, res) => {
         });
       }
 
-      // Send confirmation emails
-      await sendPaymentConfirmationEmails(applicationId);
-
-      //if the updated status is sent to Accessor then send email to assessor
-      const applicationRef = db.collection("applications").doc(applicationId);
-      const applicationDoc = await applicationRef.get();
-      const applicationData = applicationDoc.data();
-
-      if (applicationData.currentStatus === "Sent to Assessor") {
-        await SendMailToAssessor(applicationId);
-      }
+      // Use the comprehensive email service
+      await checkApplicationStatusAndSendEmails(applicationId, "payment_made");
 
       return res.json({ success: true });
     } else {
@@ -1044,7 +1041,7 @@ const getApplicationExpenses = async (req, res) => {
   } catch (error) {
     console.error("Error getting expenses:", error);
     res.status(500).json({ message: error.message });
-  } 
+  }
 };
 
 const assignApplicationToAdmin = async (req, res) => {
@@ -1162,14 +1159,7 @@ const sendToRTO = async (req, res) => {
     }
 
     await applicationRef.update({
-      currentStatus: "Sent to RTO",
-      status: [
-        ...doc.data().status,
-        {
-          statusname: "Sent to RTO",
-          time: new Date().toISOString(),
-        },
-      ],
+      assessed: true,
     });
 
     res.status(200).json({
