@@ -720,15 +720,15 @@ const deleteApplication = async (req, res) => {
     }
 
     //set the archive field to true
-    await applicationRef.update({
-      archive: true,
-    });
+    // await applicationRef.update({
+    //   archive: true,
+    // });
 
     // const { initialFormId, studentFormId, documentsFormId } =
     //   applicationDoc.data();
 
     // // Step 2: Delete connected forms
-    // const deletePromises = [];
+    const deletePromises = [];
 
     // if (initialFormId) {
     //   const initialFormRef = db
@@ -749,11 +749,11 @@ const deleteApplication = async (req, res) => {
     //   deletePromises.push(documentsFormRef.delete());
     // }
 
-    // // Step 3: Delete the application
-    // deletePromises.push(applicationRef.delete());
+    // Step 3: Delete the application
+    deletePromises.push(applicationRef.delete());
 
-    // // Wait for all deletions to complete
-    // await Promise.all(deletePromises);
+    // Wait for all deletions to complete
+    await Promise.all(deletePromises);
 
     res.status(200).json({
       message: "Application and connected forms archived successfully",
