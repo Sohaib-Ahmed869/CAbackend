@@ -4,6 +4,7 @@ require("dotenv").config();
 const express = require("express");
 const Stripe = require("stripe");
 const { db } = require("./firebase");
+const logRequest = require("./middleware/logger");
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -25,6 +26,8 @@ app.use(
     origin: "*",
   })
 );
+app.use(logRequest);
+
 app.use("/api/users", userRoutes);
 app.use("/api/applications", applicationRoutes);
 app.use("/api/auth", authRoutes);
