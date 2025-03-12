@@ -538,6 +538,7 @@ const markApplicationAsPaid = async (req, res, isInternal = false) => {
       await applicationRef.update({
         full_paid: true,
         amount_paid: applicationData.price,
+        payment2Date: new Date().toISOString(),
       });
 
       //update the application status
@@ -556,8 +557,10 @@ const markApplicationAsPaid = async (req, res, isInternal = false) => {
       applicationData.paid === false
     ) {
       await applicationRef.update({
+        payment1Date: new Date().toISOString(),
         paid: true,
         full_paid: false,
+        payment1Date: new Date().toISOString(),
         amount_paid: applicationData.payment1,
       });
     } else {
@@ -565,6 +568,7 @@ const markApplicationAsPaid = async (req, res, isInternal = false) => {
         paid: true,
         full_paid: true,
         amount_paid: applicationData.price,
+        fullPaymentDate: new Date().toISOString(),
       });
       await applicationRef.update({
         currentStatus: "Sent to Assessor",

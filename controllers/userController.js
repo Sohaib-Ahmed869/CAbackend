@@ -5,6 +5,21 @@ const { sendEmail } = require("../utils/emailUtil");
 const NodeCache = require("node-cache");
 const cache = new NodeCache({ stdTTL: 3 }); // Cache TTL of 60 seconds
 
+const getUserInfo = async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const userDoc = await db.collection("users").doc(userId).get();
+    if (!userDoc.exists) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    const userData = userDoc.data();
+    return res.status(200).json(userData);
+  } catch (error) {
+    console.error("Error fetching user info:", error);
+    return res.status(500).json({ message: "Error fetching user info" });
+  }
+};
 // Register User
 const registerUser = async (req, res) => {
   const {
@@ -888,6 +903,7 @@ const changePhoneNumber = async (req, res) => {
 module.exports = {
   changePhoneNumber,
   changeEmail,
+  getUserInfo,
   registerUser,
   verifyUser,
   registerUserbyAgent,
