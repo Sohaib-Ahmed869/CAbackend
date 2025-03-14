@@ -30,7 +30,8 @@ const {
   addAssessorNoteToApplication,
   sendToRTO,
   addPayment2DeadlineDate,
-  getApplicationStats
+  getApplicationStats,
+  getApplicationById,
 } = require("../controllers/applicationController");
 
 router.delete("/deleteApplication/:applicationId", deleteApplication);
@@ -61,4 +62,6 @@ router.put("/contactStatus/:applicationId", updateContactStatus);
 router.put("/assessorNote/:applicationId", addAssessorNoteToApplication);
 router.put("/sendToRTO/:applicationId", sendToRTO);
 router.get("/stats", getApplicationStats);
+router.get("/applications-by-id/:applicationId", getApplicationById);
+
 module.exports = router;

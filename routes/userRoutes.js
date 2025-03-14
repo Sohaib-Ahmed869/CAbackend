@@ -50,5 +50,4 @@ router.put(
   "/updateInitialScreeningForm/:applicationId",
   updateInitialScreeningForm
 );
-
 module.exports = router;
