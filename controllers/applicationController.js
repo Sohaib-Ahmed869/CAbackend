@@ -33,6 +33,67 @@ const updateApplicationStatus = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+const getApplicationById = async (req, res) => {
+  const { applicationId } = req.params;
+
+  try {
+    // Step 1: Fetch the main application document
+    const applicationRef = db.collection("applications").doc(applicationId);
+    const doc = await applicationRef.get();
+
+    if (!doc.exists) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+
+    const applicationData = doc.data();
+
+    // Step 2: Extract related form IDs from the application
+    const formIds = {
+      initialFormId: applicationData.initialFormId,
+      studentFormId: applicationData.studentFormId,
+      documentsFormId: applicationData.documentsFormId,
+    };
+
+    // Step 3: Fetch all related forms in parallel
+    const [initialFormSnapshot, studentFormSnapshot, documentsFormSnapshot] =
+      await Promise.all([
+        formIds.initialFormId
+          ? db
+              .collection("initialScreeningForms")
+              .doc(formIds.initialFormId)
+              .get()
+          : Promise.resolve(null),
+        formIds.studentFormId
+          ? db.collection("studentIntakeForms").doc(formIds.studentFormId).get()
+          : Promise.resolve(null),
+        formIds.documentsFormId
+          ? db.collection("documents").doc(formIds.documentsFormId).get()
+          : Promise.resolve(null),
+      ]);
+
+    // Step 4: Build the response with nested forms
+    const response = {
+      ...applicationData,
+      initialForm: initialFormSnapshot?.exists
+        ? initialFormSnapshot.data()
+        : null,
+      studentForm: studentFormSnapshot?.exists
+        ? studentFormSnapshot.data()
+        : null,
+      documentsForm: documentsFormSnapshot?.exists
+        ? documentsFormSnapshot.data()
+        : null,
+    };
+
+    // Step 5: Return the enriched application data
+    res.status(200).json({ application: response });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error fetching application",
+      error: error.message,
+    });
+  }
+};
 
 //get all applications for a user
 const getUserApplications = async (req, res) => {
@@ -1305,4 +1366,5 @@ module.exports = {
   addAssessorNoteToApplication,
   sendToRTO,
   getApplicationStats,
+  getApplicationById,
 };
