@@ -809,10 +809,8 @@ const dividePaymentIntoTwo = async (req, res) => {
   // Divide the payment into two parts
   // First part is the initial payment
   // Second part is the remaining balance
-  // The initial payment is in body
-  // The remaining balance is calculated from the application
   const { applicationId } = req.params;
-  const { payment1, payment2 } = req.body;
+  const { payment1, payment2, payment2Deadline } = req.body; // Add payment2Deadline
 
   try {
     //update the application with the payment details
@@ -821,6 +819,7 @@ const dividePaymentIntoTwo = async (req, res) => {
     await applicationRef.update({
       payment1: payment1,
       payment2: payment2,
+      payment2Deadline: payment2Deadline, // Add this new field
       partialScheme: true,
       full_paid: false,
       amount_paid: 0,
@@ -830,6 +829,23 @@ const dividePaymentIntoTwo = async (req, res) => {
   } catch (error) {
     console.error("Error dividing payment:", error.message);
     res.status(500).json({ message: "Error dividing payment" });
+  }
+};
+
+const addPayment2DeadlineDate = async (req, res) => {
+  const { applicationId } = req.params;
+  const { payment2Deadline } = req.body;
+
+  try {
+    const applicationRef = db.collection("applications").doc(applicationId);
+    await applicationRef.update({
+      payment2Deadline: payment2Deadline,
+    });
+
+    res.status(200).json({ message: "Payment 2 deadline added successfully" });
+  } catch (error) {
+    console.error("Error adding payment 2 deadline:", error.message);
+    res.status(500).json({ message: "Error adding payment 2 deadline" });
   }
 };
 
@@ -1288,6 +1304,7 @@ module.exports = {
   customerPayment,
   updateApplicationStatus,
   markApplicationAsPaid,
+  addPayment2DeadlineDate,
   createNewApplicationByAgent,
   deleteApplication,
   unArchiveApplication,

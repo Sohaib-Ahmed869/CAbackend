@@ -9,7 +9,7 @@ const serviceAccount = "./serviceAccountKey2.json";
 const firebaseApp = initializeApp({
   credential: cert(serviceAccount),
   storageBucket: "gs://testca-e3e5e.firebasestorage.app",
-  //storageBucket: "gs://certifiedaustralia1.appspot.com",
+ // storageBucket: "gs://certifiedaustralia1.appspot.com",
 });
 
 const db = getFirestore(firebaseApp);

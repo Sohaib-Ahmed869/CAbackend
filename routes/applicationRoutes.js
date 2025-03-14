@@ -29,6 +29,7 @@ const {
   unArchiveApplication,
   addAssessorNoteToApplication,
   sendToRTO,
+  addPayment2DeadlineDate,
   getApplicationStats
 } = require("../controllers/applicationController");
 
@@ -52,6 +53,7 @@ router.post("/webhook", handleSquareWebhook);
 router.get("/export", exportApplicationsToCSV);
 router.put("/discount/:applicationId", addDiscountToApplication);
 router.post("/expense/:applicationId", addExpenseToApplication);
+router.put("/payment2DeadlineDate/:applicationId", addPayment2DeadlineDate);
 router.get("/expenses/:applicationId", getApplicationExpenses);
 router.put("/assign/:applicationId", assignApplicationToAdmin);
 router.put("/callAttempts/:applicationId", updateCallAttempts);

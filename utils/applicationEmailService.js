@@ -11,6 +11,7 @@ const { sendEmail } = require("../utils/emailUtil");
  */
 
 // Email template components with improved mobile compatibility
+// Change this section in your emailHeader constant
 const emailHeader = `
 <!DOCTYPE html>
 <html>
@@ -56,11 +57,20 @@ const emailHeader = `
     
     /* Header */
     .email-header {
-      background-color: #089C34;
+      background-color:rgb(255, 255, 255);
       color: white;
       padding: 20px;
       text-align: center;
       border-radius: 8px 8px 0 0;
+    }
+    
+    .logo-container {
+      margin-bottom: 10px;
+    }
+    
+    .logo {
+      max-width: 250px;
+      height: auto;
     }
     
     /* Body */
@@ -107,7 +117,7 @@ const emailHeader = `
     
     .button {
       background-color: #089C34;
-      color: #ffffff;
+      color: #ffffff !important;
       text-decoration: none;
       font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
       font-size: 16px;
@@ -167,6 +177,10 @@ const emailHeader = `
         display: block !important;
         width: 100% !important;
       }
+      
+      .logo {
+        max-width: 200px !important;
+      }
     }
   </style>
 </head>
@@ -174,11 +188,12 @@ const emailHeader = `
   <div class="email-wrapper">
     <div class="email-container">
       <div class="email-header">
-        <h1>Certified Australia</h1>
+        <div class="logo-container">
+          <img src="https://logosca.s3.ap-southeast-2.amazonaws.com/image-removebg-preview+(18).png" alt="Certified Australia Logo" class="logo">
+        </div>
       </div>
       <div class="email-body">
 `;
-
 const emailFooter = `
       </div>
       <div class="email-footer">
@@ -681,6 +696,10 @@ const handleDocsUploadedEmailNotification = async (
       <div class="button-container">
         <a href="${loginUrl}" class="button">Complete Payment</a>
       </div>
+
+      <div class="button-container">
+  <a href="${loginUrl}" class="button">Make Payment</a>
+</div>
       
       <p>Your application will be sent for approval immediately after your payment is processed.</p>
       
@@ -730,6 +749,10 @@ const handleDocsUploadedEmailNotification = async (
       <div class="button-container">
         <a href="${loginUrl}" class="button">Complete Payment</a>
       </div>
+
+      <div class="button-container">
+  <a href="${loginUrl}" class="button">Make Payment</a>
+</div>
       
       <p>Your application will be sent for approval once the full payment is received.</p>
       
@@ -844,6 +867,10 @@ const handleSIFCompletedEmailNotification = async (
       <div class="button-container">
         <a href="${loginUrl}" class="button">Upload Documents</a>
       </div>
+
+      <div class="button-container">
+  <a href="${loginUrl}" class="button">Make Payment</a>
+</div>
       
       <p>Once you've uploaded your documents, you'll need to complete the payment of $${
         status.price - status.discount
@@ -1009,6 +1036,11 @@ const sendContextBasedEmail = async (
       <div class="button-container">
         <a href="${loginUrl}" class="button">Complete Your Application</a>
       </div>
+
+      <div class="button-container">
+  <a href="${loginUrl}" class="button">Make Payment</a>
+</div>
+
       
       <h3>Application Process Overview:</h3>
       <ol>

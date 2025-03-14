@@ -392,7 +392,7 @@ const registerUser = async (req, res) => {
 <body>
     <div class="email-container">
         <div class="email-header">
-            <img src="https://ci3.googleusercontent.com/mail-sig/AIorK4wUrVPXmmjHfiEam1_OOvAyse2Vb-ygiKj2i4zvyK9wTcDIVKIhiG2sjtDIT8vUcuyqK5kdTlu9NrOm" alt="Certified Australia Logo" class="logo">
+            <img src="https://logosca.s3.ap-southeast-2.amazonaws.com/image-removebg-preview+(18).png" alt="Certified Australia Logo" class="logo">
             <h1 class="header-title">Welcome to Certified Australia!</h1>
         </div>
         

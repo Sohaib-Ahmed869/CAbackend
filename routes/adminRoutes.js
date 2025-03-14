@@ -30,7 +30,7 @@ router.put("/verifyApplication/:apxplicationId", verifyApplication);
 router.put("/markApplicationAsPaid/:applicationId", markApplicationAsPaid);
 router.get("/dashboardStats/:id", getDashboardStats);
 router.put("/addNoteToApplication/:applicationId", addNoteToApplication);
-router.post("/resend/:userId", resendEmail);
+router.post("/resend/:applicationId", resendEmail);
 router.put("/colorToApplication/:applicationId", addColorToApplication);
 router.put("/student-intake-form/:studentFormId", updateStudentIntakeForm);
 router.post("/register-assessor", registerAssessor);
