@@ -189,40 +189,45 @@ const requestMoreDocuments = async (req, res) => {
                 padding: 0;
                 margin: 10px 0;
             }
-         .document-item {
+      .document-item {
     display: flex;
-    justify-content: space-between !important;
-    coloumn-gap:50%;
+    justify-content: space-between !important; /* Ensures name is on the left and status on the right */
     align-items: center;
-    padding: 12px 0;
+    padding: 12px 16px;
     border-bottom: 1px solid #eaeaea;
-    gap: 3px;
 }
+
 .document-name {
-display:block;
+width:350px;
     font-weight: 500;
     color: #444;
-    flex-grow: 1;
+    flex-grow: 1; /* Ensures name takes up available space */
+    text-align: left;
 }
+
 .status-pill {
-    display:block;
     border-radius: 20px;
+    padding: 6px 12px;
     font-size: 14px;
     font-weight: 600;
     text-align: center;
     white-space: nowrap;
+    min-width: 100px; /* Ensures proper width */
+    text-align: center;
 }
-   .uploaded {
-                background: #e6f4ea;
-                color: #089C34;
-                border: 1px solid #089C34;
-            }
-            .pending {
-                background: #fef2f2;
-                color: #d93025;
-                border: 1px solid #d93025;
-            }
-            .cta {
+
+.uploaded {
+    background: #e6f4ea;
+    color: #089C34;
+    border: 1px solid #089C34;
+}
+
+.pending {
+    background: #fef2f2;
+    color: #d93025;
+    border: 1px solid #d93025;
+}
+      .cta {
                 text-align: center;
                 margin: 30px 0;
             }
@@ -260,22 +265,17 @@ display:block;
                 </p>
                 <div class="status-card">
                     <h3 class="card-title">Requested Documents</h3>
-                 <ul class="document-list">
+               <ul class="document-list">
     ${updatedDocuments
       .map((doc) => {
         const docField = documentsFormData[doc.name];
         const isUploaded = !!docField?.fileUrl;
         return `
         <li class="document-item">
-            <div>
             <span class="document-name">${doc.name}</span>
-            </div>
-            <div>
-
             <span class="status-pill ${isUploaded ? "uploaded" : "pending"}">
                 ${isUploaded ? "Uploaded ✓" : "Pending ⓘ"}
             </span>
-            </div>
         </li>`;
       })
       .join("")}
@@ -345,39 +345,46 @@ display:block;
                 list-style: none;
                 padding: 0;
             }
-          .document-item {
-          
+      .document-item {
     display: flex;
-    justify-content: space-between !important;
+    justify-content: space-between !important; /* Ensures name is on the left and status on the right */
     align-items: center;
-    padding: 12px 0;
+    padding: 12px 16px;
     border-bottom: 1px solid #eaeaea;
 }
+
 .document-name {
-display:block;
+width:350px;
+
     font-weight: 500;
     color: #444;
-    flex-grow: 1;
+    flex-grow: 1; /* Ensures name takes up available space */
+    text-align: left;
 }
-.status-pill {
-display:block;
 
+.status-pill {
     border-radius: 20px;
-    padding:2px;
+    padding: 6px 12px;
     font-size: 14px;
     font-weight: 600;
     text-align: center;
     white-space: nowrap;
+    min-width: 100px; /* Ensures proper width */
+    text-align: center;
 }
-  .uploaded {
-                background: #e6f4ea;
-                color: #089C34;
-            }
-            .pending {
-                background: #fef2f2;
-                color: #d93025;
-            }
-            .footer {
+
+.uploaded {
+    background: #e6f4ea;
+    color: #089C34;
+    border: 1px solid #089C34;
+}
+
+.pending {
+    background: #fef2f2;
+    color: #d93025;
+    border: 1px solid #d93025;
+}
+      .footer {
                 background: #f1f3f5;
                 padding: 16px;
                 text-align: center;
@@ -397,26 +404,22 @@ display:block;
     }</p>
                 <div class="status-card">
                     <h3>Documents Overview</h3>
-                  <ul class="document-list">
+           <ul class="document-list">
     ${updatedDocuments
       .map((doc) => {
         const docField = documentsFormData[doc.name];
         const isUploaded = !!docField?.fileUrl;
         return `
         <li class="document-item">
-            <div>
             <span class="document-name">${doc.name}</span>
-            </div>
-            <div>
-
             <span class="status-pill ${isUploaded ? "uploaded" : "pending"}">
                 ${isUploaded ? "Uploaded ✓" : "Pending ⓘ"}
             </span>
-            </div>
         </li>`;
       })
       .join("")}
 </ul>
+
 
                 </div>
             </div>
