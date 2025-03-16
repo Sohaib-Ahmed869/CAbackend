@@ -871,22 +871,88 @@ const dividePaymentIntoTwo = async (req, res) => {
   // First part is the initial payment
   // Second part is the remaining balance
   const { applicationId } = req.params;
-  const { payment1, payment2, payment2Deadline } = req.body; // Add payment2Deadline
+  const { payment1, payment2, payment2Deadline } = req.body;
 
   try {
-    //update the application with the payment details
+    // Update the application with the payment details
     const applicationRef = db.collection("applications").doc(applicationId);
+    const applicationDoc = await applicationRef.get();
+
+    if (!applicationDoc.exists) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+
+    const applicationData = applicationDoc.data();
 
     await applicationRef.update({
       payment1: payment1,
       payment2: payment2,
-      payment2Deadline: payment2Deadline, // Add this new field
+      payment2Deadline: payment2Deadline,
       partialScheme: true,
       full_paid: false,
       amount_paid: 0,
     });
 
-    res.status(200).json({ message: "Payment divided successfully" });
+    // Get user details for email notification
+    const userRef = db.collection("users").doc(applicationData.userId);
+    const userDoc = await userRef.get();
+
+    if (userDoc.exists) {
+      const userData = userDoc.data();
+      const { email, firstName, lastName } = userData;
+
+      // Create login token for the user
+      const token = await auth.createCustomToken(applicationData.userId);
+      const loginUrl = `${process.env.CLIENT_URL}/existing-applications?token=${token}`;
+
+      // Format payment2Deadline for display
+      const formattedDeadline = new Date(payment2Deadline).toLocaleDateString();
+
+      // Prepare email content
+      const emailSubject = "Payment Plan Created for Your Application";
+      const emailBody = `
+        <h2>Dear ${firstName} ${lastName},</h2>
+        
+        <p>We've created a payment plan for your application with Certified Australia.</p>
+        
+        <div style="background-color: #e8f4fd; border-left: 4px solid #2196f3; padding: 15px; margin: 20px 0;">
+          <h3>Payment Plan Details:</h3>
+          <ul>
+            <li><strong>Initial Payment:</strong> $${payment1}</li>
+            <li><strong>Second Payment:</strong> $${payment2}</li>
+            <li><strong>Second Payment Deadline:</strong> ${formattedDeadline}</li>
+            <li><strong>Total:</strong> $${
+              Number(payment1) + Number(payment2)
+            }</li>
+          </ul>
+        </div>
+        
+        <p>You can proceed with your initial payment by clicking the button below:</p>
+        
+        <div style="text-align: center; margin: 25px 0;">
+          <a href="${loginUrl}" style="background-color: #089C34; color: #ffffff; text-decoration: none; font-family: 'Segoe UI', Tahoma, Arial, sans-serif; font-size: 16px; font-weight: bold; padding: 15px 30px; border-radius: 5px; display: inline-block;">Make Initial Payment</a>
+        </div>
+        
+        <p>Please note that your application will be fully processed after completing both payments.</p>
+        
+        <p>If you have any questions about your payment plan, please don't hesitate to contact our support team.</p>
+        
+        <p>Thank you for choosing Certified Australia.</p>
+        
+        <p>Warm regards,<br>The Certified Australia Team</p>
+      `;
+
+      // Send email notification
+      await sendEmail(email, emailBody, emailSubject);
+
+      console.log(
+        `Payment plan email sent to ${email} for application ${applicationId}`
+      );
+    }
+
+    res
+      .status(200)
+      .json({ message: "Payment divided successfully and notification sent" });
   } catch (error) {
     console.error("Error dividing payment:", error.message);
     res.status(500).json({ message: "Error dividing payment" });

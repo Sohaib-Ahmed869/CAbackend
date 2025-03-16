@@ -5,20 +5,13 @@ const storage = multer.memoryStorage();
 const upload = multer({
   storage,
   fileFilter: (req, file, cb) => {
-    if (
-      file.mimetype === "image/jpeg" ||
-      file.mimetype === "image/jpg" ||
-      file.mimetype === "image/png" ||
-      file.mimetype === "application/pdf" ||
-      file.mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-      file.mimetype === "video/mp4"||
-      file.mimetype === "video/quicktime"
-    ) {
-      cb(null, true);
-    } else {
-      const error = new Error("Only PDF, PNG, JPG, DOCX, and MP4 files are allowed");
-      error.status = 404; 
+    const disallowedTypes = ["application/x-msdownload", "application/x-msdos-program"];
+    if (disallowedTypes.includes(file.mimetype)) {
+      const error = new Error("DLL and EXE files are not allowed");
+      error.status = 404;
       cb(error, false);
+    } else {
+      cb(null, true);
     }
   },
 });

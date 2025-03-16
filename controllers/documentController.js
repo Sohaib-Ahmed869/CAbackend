@@ -91,6 +91,9 @@ const uploadSingleFile = async (req, res) => {
       "application/pdf",
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "video/mp4",
+      "video/mkv",
+      "video/avi",
+      "video/mov",
     ];
 
     if (!allowedMimeTypes.includes(file.mimetype)) {
