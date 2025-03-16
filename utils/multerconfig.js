@@ -5,16 +5,26 @@ const storage = multer.memoryStorage();
 const upload = multer({
   storage,
   fileFilter: (req, file, cb) => {
-    const disallowedTypes = [
-      "application/x-msdownload",
-      "application/x-msdos-program",
-    ];
-    if (disallowedTypes.includes(file.mimetype)) {
-      const error = new Error("DLL and EXE files are not allowed");
+    if (
+      file.mimetype === "image/jpeg" ||
+      file.mimetype === "image/jpg" ||
+      file.mimetype === "image/png" ||
+      file.mimetype === "application/pdf" ||
+      file.mimetype ===
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      file.mimetype === "video/mp4" ||
+      file.mimetype === "video/quicktime" ||
+      file.mimetype === "video/mkv" ||
+      file.mimetype === "video/avi"
+    ) {
+      cb(null, true);
+    } else {
+      const error = new Error(
+        "Only PDF, PNG, JPG, DOCX, and MP4 files are allowed"
+      );
       error.status = 404;
       cb(error, false);
-      return;
-    } else cb(null, true);
+    }
   },
 });
 
