@@ -703,7 +703,7 @@ async function sendPaymentConfirmationEmails(applicationId) {
   const discount = applicationData.discount || 0;
   // const emailaDMIN = "applications@certifiedaustralia.com.au";
   // const emailAdmin2 = "ceo@certifiedaustralia.com.au";
-  const emailaDMIN = "sohaibahmedsipra@gmail.com";
+  const emailaDMIN = "ceo@certifiedaustralia.com.au";
   const emailAdmin2 = "sohaib.sipra@calcite.live";
   //get ceo@certifiedaustralia.com.au id
   const adminSnapshot = await db
