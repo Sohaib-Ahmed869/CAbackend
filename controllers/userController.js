@@ -234,8 +234,8 @@ const registerUser = async (req, res) => {
             box-shadow: 0 3px 10px rgba(0,0,0,0.1);
         }
         .email-header {
-            background: linear-gradient(135deg, #089C34 0%, #056823 100%);
-            color: white;
+            background: white;
+            color:black;
             padding: 30px;
             text-align: center;
         }

@@ -698,7 +698,7 @@ const handleDocsUploadedEmailNotification = async (
       </div>
 
       <div class="button-container">
-  <a href="${loginUrl}" class="button">Make Payment</a>
+  <a href="${loginUrl}" class="button">Go to Dashboard</a>
 </div>
       
       <p>Your application will be sent for approval immediately after your payment is processed.</p>
@@ -751,7 +751,7 @@ const handleDocsUploadedEmailNotification = async (
       </div>
 
       <div class="button-container">
-  <a href="${loginUrl}" class="button">Make Payment</a>
+  <a href="${loginUrl}" class="button">Go to Dashboard</a>
 </div>
       
       <p>Your application will be sent for approval once the full payment is received.</p>
@@ -869,7 +869,7 @@ const handleSIFCompletedEmailNotification = async (
       </div>
 
       <div class="button-container">
-  <a href="${loginUrl}" class="button">Make Payment</a>
+  <a href="${loginUrl}" class="button">Go to Dashboard</a>
 </div>
       
       <p>Once you've uploaded your documents, you'll need to complete the payment of $${
@@ -1038,7 +1038,7 @@ const sendContextBasedEmail = async (
       </div>
 
       <div class="button-container">
-  <a href="${loginUrl}" class="button">Make Payment</a>
+  <a href="${loginUrl}" class="button">Go to Dashboard</a>
 </div>
 
       
