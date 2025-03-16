@@ -285,11 +285,7 @@ width:350px;
                 <p class="message">
                     To complete your application, please upload all required documents through your portal.
                 </p>
-                <div class="cta">
-                    <a href="${
-                      process.env.CLIENT_URL
-                    }/application-status?id=${applicationId}">View Application Portal</a>
-                </div>
+          
             </div>
             <div class="footer">
                 <p>© 2025 Certified Australia. All rights reserved.</p>
