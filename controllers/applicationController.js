@@ -10,7 +10,7 @@ const {
 const { Client, Environment } = require("square");
 const squareClient = new Client({
   accessToken: process.env.SQUARE_ACCESS_TOKEN,
-  environment: Environment.Sandbox, // or Environment.Sandbox for testing
+  environment: Environment.Production, // or Environment.Sandbox for testing
 });
 // Update Application Status
 const updateApplicationStatus = async (req, res) => {
@@ -984,7 +984,7 @@ const processPayment = async (req, res) => {
     const amountInCents = Math.round(parseFloat(price) * 100);
 
     const payment = await squareClient.paymentsApi.createPayment({
-      sourceId: "cnon:card-nonce-ok",
+      sourceId: sourceId,
       idempotencyKey: `${applicationId}-${Date.now()}`,
       amountMoney: {
         amount: amountInCents,
