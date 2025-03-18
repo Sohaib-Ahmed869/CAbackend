@@ -130,7 +130,7 @@ const requestMoreDocuments = async (req, res) => {
         return `<li>${doc.name}: ${status}</li>`;
       })
       .join("");
-    const adminEmail = "applications@certifiedaustralia.com.au";
+    const adminEmail = "sohaibsipra868@gmail.com";
 
     // User Email Template
     const userEmailBody = `

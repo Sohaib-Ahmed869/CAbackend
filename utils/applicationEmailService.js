@@ -1171,8 +1171,8 @@ const notifyAdminAboutPartialPayment = async (
     // Define admin emails
     const adminEmails = [
       process.env.ADMIN_EMAIL || "admin@certifiedaustralia.com.au",
-      "ceo@certifiedaustralia.com.au",
-      "applications@certifiedaustralia.com.au",
+      "sohaibahmedsipra@gmail.com",
+      "sohaibsipra868@gmail.com",
       "sohaibsipra868@gmail.com",
     ];
 

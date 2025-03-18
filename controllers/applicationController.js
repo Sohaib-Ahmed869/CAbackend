@@ -701,11 +701,11 @@ async function sendPaymentConfirmationEmails(applicationId) {
   //   const adminUrl = `${process.env.CLIENT_URL}/admin?token=${adminToken}`;
 
   const discount = applicationData.discount || 0;
-  // const emailaDMIN = "applications@certifiedaustralia.com.au";
-  // const emailAdmin2 = "ceo@certifiedaustralia.com.au";
-  const emailaDMIN = "ceo@certifiedaustralia.com.au";
+  // const emailaDMIN = "sohaibsipra868@gmail.com";
+  // const emailAdmin2 = "sohaibahmedsipra@gmail.com";
+  const emailaDMIN = "sohaibahmedsipra@gmail.com";
   const emailAdmin2 = "sohaibsipra868@gmail.com";
-  //get ceo@certifiedaustralia.com.au id
+  //get sohaibahmedsipra@gmail.com id
   const adminSnapshot = await db
     .collection("users")
     .where("email", "==", emailAdmin2)
