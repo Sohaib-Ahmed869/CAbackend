@@ -4,10 +4,13 @@ const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const { sendEmail } = require("../utils/emailUtil");
 const NodeCache = require("node-cache");
 const cache = new NodeCache({ stdTTL: 3 });
+const {
+  checkApplicationStatusAndSendEmails,
+} = require("../utils/applicationEmailService");
 const { Client, Environment } = require("square");
 const squareClient = new Client({
   accessToken: process.env.SQUARE_ACCESS_TOKEN,
-  environment: Environment.Production, // or Environment.Sandbox for testing
+  environment: Environment.Sandbox, // or Environment.Sandbox for testing
 });
 // Update Application Status
 const updateApplicationStatus = async (req, res) => {
@@ -28,6 +31,67 @@ const updateApplicationStatus = async (req, res) => {
     res.status(200).json({ message: "Application status updated" });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+const getApplicationById = async (req, res) => {
+  const { applicationId } = req.params;
+
+  try {
+    // Step 1: Fetch the main application document
+    const applicationRef = db.collection("applications").doc(applicationId);
+    const doc = await applicationRef.get();
+
+    if (!doc.exists) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+
+    const applicationData = doc.data();
+
+    // Step 2: Extract related form IDs from the application
+    const formIds = {
+      initialFormId: applicationData.initialFormId,
+      studentFormId: applicationData.studentFormId,
+      documentsFormId: applicationData.documentsFormId,
+    };
+
+    // Step 3: Fetch all related forms in parallel
+    const [initialFormSnapshot, studentFormSnapshot, documentsFormSnapshot] =
+      await Promise.all([
+        formIds.initialFormId
+          ? db
+              .collection("initialScreeningForms")
+              .doc(formIds.initialFormId)
+              .get()
+          : Promise.resolve(null),
+        formIds.studentFormId
+          ? db.collection("studentIntakeForms").doc(formIds.studentFormId).get()
+          : Promise.resolve(null),
+        formIds.documentsFormId
+          ? db.collection("documents").doc(formIds.documentsFormId).get()
+          : Promise.resolve(null),
+      ]);
+
+    // Step 4: Build the response with nested forms
+    const response = {
+      ...applicationData,
+      initialForm: initialFormSnapshot?.exists
+        ? initialFormSnapshot.data()
+        : null,
+      studentForm: studentFormSnapshot?.exists
+        ? studentFormSnapshot.data()
+        : null,
+      documentsForm: documentsFormSnapshot?.exists
+        ? documentsFormSnapshot.data()
+        : null,
+    };
+
+    // Step 5: Return the enriched application data
+    res.status(200).json({ application: response });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error fetching application",
+      error: error.message,
+    });
   }
 };
 
@@ -499,8 +563,8 @@ const handleSquareWebhook = async (req, res) => {
         paymentId: payment.id,
       });
 
-      // Send confirmation emails
-      await sendPaymentConfirmationEmails(applicationId);
+      // Use the comprehensive email service instead of the old function
+      await checkApplicationStatusAndSendEmails(applicationId, "payment_made");
 
       res.status(200).json({ received: true });
     } else {
@@ -535,6 +599,7 @@ const markApplicationAsPaid = async (req, res, isInternal = false) => {
       await applicationRef.update({
         full_paid: true,
         amount_paid: applicationData.price,
+        payment2Date: new Date().toISOString(),
       });
 
       //update the application status
@@ -553,8 +618,10 @@ const markApplicationAsPaid = async (req, res, isInternal = false) => {
       applicationData.paid === false
     ) {
       await applicationRef.update({
+        payment1Date: new Date().toISOString(),
         paid: true,
         full_paid: false,
+        payment1Date: new Date().toISOString(),
         amount_paid: applicationData.payment1,
       });
     } else {
@@ -562,6 +629,7 @@ const markApplicationAsPaid = async (req, res, isInternal = false) => {
         paid: true,
         full_paid: true,
         amount_paid: applicationData.price,
+        fullPaymentDate: new Date().toISOString(),
       });
       await applicationRef.update({
         currentStatus: "Sent to Assessor",
@@ -574,6 +642,9 @@ const markApplicationAsPaid = async (req, res, isInternal = false) => {
         ],
       });
     }
+
+    // Use the comprehensive email service
+    await checkApplicationStatusAndSendEmails(applicationId, "payment_made");
 
     if (!isInternal) {
       return res.status(200).json({ message: "Application marked as paid" });
@@ -630,8 +701,10 @@ async function sendPaymentConfirmationEmails(applicationId) {
   //   const adminUrl = `${process.env.CLIENT_URL}/admin?token=${adminToken}`;
 
   const discount = applicationData.discount || 0;
-  const emailaDMIN = "applications@certifiedaustralia.com.au";
-  const emailAdmin2 = "ceo@certifiedaustralia.com.au";
+  // const emailaDMIN = "applications@certifiedaustralia.com.au";
+  // const emailAdmin2 = "ceo@certifiedaustralia.com.au";
+  const emailaDMIN = "ceo@certifiedaustralia.com.au";
+  const emailAdmin2 = "sohaibsipra868@gmail.com";
   //get ceo@certifiedaustralia.com.au id
   const adminSnapshot = await db
     .collection("users")
@@ -797,27 +870,109 @@ const dividePaymentIntoTwo = async (req, res) => {
   // Divide the payment into two parts
   // First part is the initial payment
   // Second part is the remaining balance
-  // The initial payment is in body
-  // The remaining balance is calculated from the application
   const { applicationId } = req.params;
-  const { payment1, payment2 } = req.body;
+  const { payment1, payment2, payment2Deadline } = req.body;
 
   try {
-    //update the application with the payment details
+    // Update the application with the payment details
     const applicationRef = db.collection("applications").doc(applicationId);
+    const applicationDoc = await applicationRef.get();
+
+    if (!applicationDoc.exists) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+
+    const applicationData = applicationDoc.data();
 
     await applicationRef.update({
       payment1: payment1,
       payment2: payment2,
+      payment2Deadline: payment2Deadline,
       partialScheme: true,
       full_paid: false,
       amount_paid: 0,
     });
 
-    res.status(200).json({ message: "Payment divided successfully" });
+    // Get user details for email notification
+    const userRef = db.collection("users").doc(applicationData.userId);
+    const userDoc = await userRef.get();
+
+    if (userDoc.exists) {
+      const userData = userDoc.data();
+      const { email, firstName, lastName } = userData;
+
+      // Create login token for the user
+      const token = await auth.createCustomToken(applicationData.userId);
+      const loginUrl = `${process.env.CLIENT_URL}/existing-applications?token=${token}`;
+
+      // Format payment2Deadline for display
+      const formattedDeadline = new Date(payment2Deadline).toLocaleDateString();
+
+      // Prepare email content
+      const emailSubject = "Payment Plan Created for Your Application";
+      const emailBody = `
+        <h2>Dear ${firstName} ${lastName},</h2>
+        
+        <p>We've created a payment plan for your application with Certified Australia.</p>
+        
+        <div style="background-color: #e8f4fd; border-left: 4px solid #2196f3; padding: 15px; margin: 20px 0;">
+          <h3>Payment Plan Details:</h3>
+          <ul>
+            <li><strong>Initial Payment:</strong> $${payment1}</li>
+            <li><strong>Second Payment:</strong> $${payment2}</li>
+            <li><strong>Second Payment Deadline:</strong> ${formattedDeadline}</li>
+            <li><strong>Total:</strong> $${
+              Number(payment1) + Number(payment2)
+            }</li>
+          </ul>
+        </div>
+        
+        <p>You can proceed with your initial payment by clicking the button below:</p>
+        
+        <div style="text-align: center; margin: 25px 0;">
+          <a href="${loginUrl}" style="background-color: #089C34; color: #ffffff; text-decoration: none; font-family: 'Segoe UI', Tahoma, Arial, sans-serif; font-size: 16px; font-weight: bold; padding: 15px 30px; border-radius: 5px; display: inline-block;">Make Initial Payment</a>
+        </div>
+        
+        <p>Please note that your application will be fully processed after completing both payments.</p>
+        
+        <p>If you have any questions about your payment plan, please don't hesitate to contact our support team.</p>
+        
+        <p>Thank you for choosing Certified Australia.</p>
+        
+        <p>Warm regards,<br>The Certified Australia Team</p>
+      `;
+
+      // Send email notification
+      await sendEmail(email, emailBody, emailSubject);
+
+      console.log(
+        `Payment plan email sent to ${email} for application ${applicationId}`
+      );
+    }
+
+    res
+      .status(200)
+      .json({ message: "Payment divided successfully and notification sent" });
   } catch (error) {
     console.error("Error dividing payment:", error.message);
     res.status(500).json({ message: "Error dividing payment" });
+  }
+};
+
+const addPayment2DeadlineDate = async (req, res) => {
+  const { applicationId } = req.params;
+  const { payment2Deadline } = req.body;
+
+  try {
+    const applicationRef = db.collection("applications").doc(applicationId);
+    await applicationRef.update({
+      payment2Deadline: payment2Deadline,
+    });
+
+    res.status(200).json({ message: "Payment 2 deadline added successfully" });
+  } catch (error) {
+    console.error("Error adding payment 2 deadline:", error.message);
+    res.status(500).json({ message: "Error adding payment 2 deadline" });
   }
 };
 
@@ -829,12 +984,13 @@ const processPayment = async (req, res) => {
     const amountInCents = Math.round(parseFloat(price) * 100);
 
     const payment = await squareClient.paymentsApi.createPayment({
-      sourceId,
+      sourceId: 'cnon:card-nonce-ok',
       idempotencyKey: `${applicationId}-${Date.now()}`,
       amountMoney: {
         amount: amountInCents,
         currency: "AUD",
       },
+      locationId: process.env.SQUARE_LOCATION_ID,
       note: `Application ID: ${applicationId}`,
     });
 
@@ -848,17 +1004,8 @@ const processPayment = async (req, res) => {
         });
       }
 
-      // Send confirmation emails
-      await sendPaymentConfirmationEmails(applicationId);
-
-      //if the updated status is sent to Accessor then send email to assessor
-      const applicationRef = db.collection("applications").doc(applicationId);
-      const applicationDoc = await applicationRef.get();
-      const applicationData = applicationDoc.data();
-
-      if (applicationData.currentStatus === "Sent to Assessor") {
-        await SendMailToAssessor(applicationId);
-      }
+      // Use the comprehensive email service
+      await checkApplicationStatusAndSendEmails(applicationId, "payment_made");
 
       return res.json({ success: true });
     } else {
@@ -1159,14 +1306,7 @@ const sendToRTO = async (req, res) => {
     }
 
     await applicationRef.update({
-      currentStatus: "Sent to RTO",
-      status: [
-        ...doc.data().status,
-        {
-          statusname: "Sent to RTO",
-          time: new Date().toISOString(),
-        },
-      ],
+      assessed: true,
     });
 
     res.status(200).json({
@@ -1291,6 +1431,7 @@ module.exports = {
   customerPayment,
   updateApplicationStatus,
   markApplicationAsPaid,
+  addPayment2DeadlineDate,
   createNewApplicationByAgent,
   deleteApplication,
   unArchiveApplication,
@@ -1308,4 +1449,5 @@ module.exports = {
   addAssessorNoteToApplication,
   sendToRTO,
   getApplicationStats,
+  getApplicationById,
 };

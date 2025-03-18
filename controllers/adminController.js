@@ -4,6 +4,9 @@ const { sendEmail } = require("../utils/emailUtil");
 const bcrypt = require("bcrypt");
 const NodeCache = require("node-cache");
 const cache = new NodeCache({ stdTTL: 3 }); // Cache TTL of 60 seconds
+const {
+  checkApplicationStatusAndSendEmails,
+} = require("../utils/applicationEmailService");
 
 // Admin Login
 const adminLogin = async (req, res) => {
@@ -530,7 +533,7 @@ const getDashboardStats = async (req, res) => {
     ).length;
 
     // Count total agents
-    const totalAgents = users.filter((user) => user.role === "agent").length;
+    const totalAgents = users.filter((user) => user.type === "agent").length;
 
     const colorStatusCount = {
       hotLead: applications.filter((app) => app.color === "red").length,
@@ -587,53 +590,48 @@ const addNoteToApplication = async (req, res) => {
   }
 };
 
-// Resend Email to User
 const resendEmail = async (req, res) => {
-  const { userId } = req.params;
+  const { applicationId } = req.params; // Changed from userId to applicationId
 
   try {
-    // Fetch the user's email by userId from the 'users' collection
+    // Fetch the application data
+    const applicationRef = db.collection("applications").doc(applicationId);
+    const applicationDoc = await applicationRef.get();
+
+    if (!applicationDoc.exists) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+
+    const applicationData = applicationDoc.data();
+    const { userId } = applicationData;
+
+    // Fetch user data
     const userRef = db.collection("users").doc(userId);
     const userDoc = await userRef.get();
-
-    const token = await auth.createCustomToken(userId);
-    const loginUrl = `${process.env.CLIENT_URL}/existing-applications?token=${token}`;
 
     if (!userDoc.exists) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const { email, firstName, lastName } = userDoc.data();
+    // Trigger email sending based on the application's current status
+    const result = await checkApplicationStatusAndSendEmails(
+      applicationId,
+      "manual_trigger" // This will use the contextual email logic
+    );
 
-    // Email content
-    const emailSubject = "Progress Update for Your Application";
-    const emailBody = `
-      <h2>Dear ${firstName} ${lastName},</h2>
-      
-      <p>To view the progress of your application, please visit your <strong>Application Portal</strong>.</p>
-      
-      <a href="${loginUrl}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">
-        Go to Application Portal
-      </a>
-      
-      <p>If you have any questions, please feel free to contact our support team.</p>
-      
-       <p>
-        <strong>Best Regards,</strong><br>
-        The Certified Australia Team<br>
-        Email: <a href="mailto:info@certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">info@certifiedaustralia.com.au</a><br>
-        Phone: <a href="tel:1300044927" style="color: #3498db; text-decoration: none;">1300 044 927</a><br>
-        Website: <a href="https://www.certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">www.certifiedaustralia.com.au</a>
-      </p>
-    `;
-
-    // Send the email
-    await sendEmail(email, emailBody, emailSubject);
-
-    res.status(200).json({ message: "Email resent successfully" });
+    if (result.success) {
+      res.status(200).json({
+        message: "Email resent successfully",
+        emailType: result.result.emailType,
+      });
+    } else {
+      res.status(400).json({ message: result.message });
+    }
   } catch (error) {
     console.error("Error resending email:", error);
-    res.status(500).json({ message: "Error resending email" });
+    res
+      .status(500)
+      .json({ message: "Error resending email", error: error.message });
   }
 };
 

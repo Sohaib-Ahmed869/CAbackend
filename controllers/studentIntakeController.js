@@ -1,6 +1,9 @@
 // controllers/studentIntakeFormController.js
 const { db, auth } = require("../firebase");
 const { sendEmail } = require("../utils/emailUtil");
+const {
+  checkApplicationStatusAndSendEmails,
+} = require("../utils/applicationEmailService");
 
 // Update Student Intake Form by applicationId
 const StudentIntakeFormByApplicationId = async (req, res) => {
@@ -96,52 +99,11 @@ const StudentIntakeFormByApplicationId = async (req, res) => {
           time: new Date().toISOString(),
         },
       ],
+      studentIntakeFormSubmitted: true,
     });
 
-    const userId = applicationDoc.data().userId;
-    // Send email notification to the user
-    const userRef = db.collection("users").doc(userId);
-    const userDoc = await userRef.get();
-
-    const token = await auth.createCustomToken(userId);
-
-    const loginUrl = `${process.env.CLIENT_URL}/existing-applications?token=${token}`;
-
-    if (userDoc.exists) {
-      const { email, firstName, lastName } = userDoc.data();
-      const emailSubject = "Student Intake Form Submission and Next Steps";
-      const emailBody = `
-  <h2>Dear ${firstName} ${lastName},</h2>
-  
-  <p>Thank you for completing and submitting your Student Intake Form. We have successfully received the details you provided, and your application has moved to the next stage.</p>
-  
-  <h3>Next Steps: Evidence Submission</h3>
-  <p>To proceed with your application, please upload the necessary documents using the link below:</p>
-  <h4>Documents Required:</h4>
-  <ul>
-    <li><strong>Proof of Work Experience:</strong> Resume, job references, or detailed job descriptions.</li>
-    <li><strong>Educational Transcripts:</strong> Copies of qualifications, certificates, or diplomas.</li>
-    <li><strong>Skill Evidence:</strong> Additional certifications or training certificates.</li>
-    <li><strong>Photo and Video Evidence (if applicable):</strong> Demonstrations of your work or projects that showcase your skills.</li>
-    <li><strong>Identification Documents:</strong> A copy of your ID or passport.</li>
-  </ul>
-  <a href="${loginUrl}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Upload Documents</a>
-
-  <p>We appreciate your cooperation and attention to detail. Should you need any assistance, please feel free to reach out to our support team at any time.</p>
-  
-  <p>Thank you for choosing us. We look forward to supporting you further in this journey.</p>
-  
-  <p>
-    <strong>Best Regards,</strong><br>
-    The Certified Australia Team<br>
-    Email: <a href="mailto:info@certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">info@certifiedaustralia.com.au</a><br>
-    Phone: <a href="tel:1300044927" style="color: #3498db; text-decoration: none;">1300 044 927</a><br>
-    Website: <a href="https://www.certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">www.certifiedaustralia.com.au</a>
-    </p>
-`;
-
-      await sendEmail(email, emailBody, emailSubject);
-    }
+    // Instead of sending a direct email here, use the comprehensive email service
+    await checkApplicationStatusAndSendEmails(applicationId, "sif_completed");
 
     res
       .status(200)

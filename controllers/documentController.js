@@ -2,21 +2,148 @@
 const { db, bucket, auth } = require("../firebase");
 const { v4: uuidv4 } = require("uuid");
 const { sendEmail } = require("../utils/emailUtil");
+const {
+  checkApplicationStatusAndSendEmails,
+} = require("../utils/applicationEmailService");
 
 const DocumentsFormByApplicationId = async (req, res) => {
-  const { applicationId } = req.params;
-  console.log(req.files);
-  console.log(req.body);
-
-  const { applicationIndustry } = req.body;
-
-  const documentFiles = req.files;
-
   try {
-    // Step 1: Get documentsFormId from application document
+    const { applicationId } = req.params;
+    console.log("Final submit received:", req.body);
+
     const applicationRef = db.collection("applications").doc(applicationId);
     const applicationDoc = await applicationRef.get();
+    if (!applicationDoc.exists) {
+      return res.status(404).json({ message: "Application not found" });
+    }
 
+    const appData = applicationDoc.data();
+    const { userId, documentsFormId, paid, status } = appData;
+    if (!documentsFormId) {
+      return res
+        .status(404)
+        .json({ message: "Documents Form ID not found in application" });
+    }
+    if (!userId) {
+      return res
+        .status(404)
+        .json({ message: "User ID not found in application" });
+    }
+
+    // Update the application doc to reflect final submission
+    const newStatus = {
+      statusname: "Documents Uploaded",
+      time: new Date().toISOString(),
+    };
+
+    // Set documentsUploaded to true
+    await applicationRef.update({
+      documentsUploaded: true,
+      currentStatus: "Documents Uploaded",
+      status: [...(status || []), newStatus],
+    });
+
+    // Use the comprehensive email service instead of sending emails directly
+    await checkApplicationStatusAndSendEmails(applicationId, "docs_uploaded");
+
+    return res.status(200).json({
+      message:
+        "Documents Form updated successfully and appropriate emails sent",
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const uploadSingleFile = async (req, res) => {
+  try {
+    const { applicationId } = req.params;
+    const { fieldName } = req.body;
+
+    const applicationRef = db.collection("applications").doc(applicationId);
+    const applicationDoc = await applicationRef.get();
+    if (!applicationDoc.exists) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+
+    const appData = applicationDoc.data();
+    const { userId, documentsFormId } = appData;
+    if (!documentsFormId) {
+      return res
+        .status(404)
+        .json({ message: "Documents Form ID not found in application" });
+    }
+    if (!userId) {
+      return res
+        .status(404)
+        .json({ message: "User ID not found in application" });
+    }
+
+    const file = req.file;
+    if (!file) {
+      return res.status(400).json({ message: "No file provided" });
+    }
+    const allowedMimeTypes = [
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "application/pdf",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "video/mp4",
+    ];
+
+    if (!allowedMimeTypes.includes(file.mimetype)) {
+      return res.status(400).json({
+        message:
+          "Invalid file format. Only JPG, PNG, PDF, DOCX, and MP4 files are allowed.",
+      });
+    }
+    const imageToken = uuidv4();
+    const accessToken = uuidv4();
+    const fileName = `${userId}/${applicationId}/${fieldName}/${imageToken}_${file.originalname}`;
+    const fileRef = bucket.file(fileName);
+
+    await new Promise((resolve, reject) => {
+      const blobStream = fileRef.createWriteStream({
+        metadata: {
+          contentType: file.mimetype,
+          metadata: { firebaseStorageDownloadTokens: accessToken },
+        },
+      });
+      blobStream.on("error", (error) => reject(error));
+      blobStream.on("finish", () => resolve());
+      blobStream.end(file.buffer);
+    });
+
+    const encodedFileName = encodeURIComponent(fileName);
+    const fileUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedFileName}?alt=media&token=${accessToken}`;
+
+    const documentsRef = db.collection("documents").doc(documentsFormId);
+    await documentsRef.update({
+      [fieldName]: {
+        fileUrl,
+        fileName,
+        accessToken,
+      },
+    });
+
+    return res.status(200).json({
+      message: "File uploaded successfully",
+      fileUrl,
+    });
+  } catch (error) {
+    return res.status(404).json({ message: error.message });
+  } finally {
+  }
+};
+const deleteSingleFile = async (req, res) => {
+  try {
+    const { applicationId } = req.params;
+    const { fieldName } = req.query;
+
+    const applicationRef = db.collection("applications").doc(applicationId);
+    const applicationDoc = await applicationRef.get();
     if (!applicationDoc.exists) {
       return res.status(404).json({ message: "Application not found" });
     }
@@ -28,139 +155,32 @@ const DocumentsFormByApplicationId = async (req, res) => {
         .json({ message: "Documents Form ID not found in application" });
     }
 
-    // Step 2: Upload PDFs to Firebase Storage in parallel and get URLs
-    const fileUploadPromises = Object.entries(documentFiles).map(
-      async ([key, fileArray]) => {
-        const file = fileArray[0]; // Access the first file in the array
-        if (!file) return null;
-
-        const imageToken = uuidv4();
-        const accessToken = uuidv4();
-        const fileName = `${imageToken}`;
-        const fileRef = bucket.file(fileName);
-
-        // Create a write stream for Firebase Storage
-        await new Promise((resolve, reject) => {
-          const blobStream = fileRef.createWriteStream({
-            metadata: {
-              contentType: file.mimetype,
-              metadata: { firebaseStorageDownloadTokens: accessToken },
-            },
-          });
-
-          blobStream.on("error", (error) => reject(error));
-          blobStream.on("finish", () => resolve());
-          blobStream.end(file.buffer);
-        });
-
-        return {
-          key,
-          url: `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${fileName}?alt=media&token=${accessToken}`,
-        };
-      }
-    );
-
-    const uploadResults = await Promise.all(fileUploadPromises);
-
-    // Collect file URLs
-    const fileUrls = {};
-    uploadResults.forEach((result) => {
-      if (result) {
-        fileUrls[result.key] = result.url;
-      }
-    });
-
-    // Step 3: Update Firestore document with URLs of uploaded files
-    const formRef = db.collection("documents").doc(documentsFormId);
-    await formRef.update(fileUrls);
-
-    // Update application status
-    await applicationRef.update({
-      currentStatus: "Sent to RTO",
-      status: [
-        ...applicationDoc.data().status,
-        {
-          statusname: "Sent to RTO",
-          time: new Date().toISOString(),
-        },
-      ],
-    });
-
-    const userId = applicationDoc.data().userId;
-    const userRef = db.collection("users").doc(userId);
-    const userDoc = await userRef.get();
-    if (userDoc.exists) {
-      const { email, firstName, lastName } = userDoc.data();
-      const emailBody = ` <h2 style="color: #2c3e50;">🎉 Application Completed! 🎉</h2>
-      <p style="color: #34495e;">Hello ${firstName} ${lastName},</p>
-      <p>Your documents have been successfully uploaded.</p>
-      <p style="font-style: italic;">Please wait while we verify your documents.</p>
-      <p>Thank you for your attention.</p>
-      <p>
-    <strong>Best Regards,</strong><br>
-    The Certified Australia Team<br>
-    Email: <a href="mailto:info@certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">info@certifiedaustralia.com.au</a><br>
-    Phone: <a href="tel:1300044927" style="color: #3498db; text-decoration: none;">1300 044 927</a><br>
-    Website: <a href="https://www.certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">www.certifiedaustralia.com.au</a>
-    </p>`; // Email content (same as original code)
-      const emailSubject = "Documents Sent for Verification";
-      await sendEmail(email, emailBody, emailSubject);
+    const documentsRef = db.collection("documents").doc(documentsFormId);
+    const documentsDoc = await documentsRef.get();
+    if (!documentsDoc.exists) {
+      return res.status(404).json({ message: "Documents form not found" });
     }
 
-    // Batch email sending for RTOs
-    if (applicationDoc.data().paid) {
-      const rtoSnapshot = await db
-        .collection("users")
-        .where("role", "==", "rto")
-        .get();
-      const batchEmails = [];
-
-      rtoSnapshot.forEach((doc) => {
-        const rtoEmail = doc.data().email;
-        const rtoUserId = doc.data().id;
-        const loginToken = auth.createCustomToken(rtoUserId); // Token creation doesn't need to be awaited
-        const URL2 = `${process.env.CLIENT_URL}/rto?token=${loginToken}`;
-
-        const emailBody = `
-          <h2 style="color: #2c3e50;">🎉 Application Completed! 🎉</h2>
-          <p style="color: #34495e;">Hello RTO,</p>
-          <p>A user has completed their application.</p>
-          <p>Click the button below to view the application:</p>
-          <a href="${URL2}" style="background-color: #089C34; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Upload Certificate</a>
-          <p style="font-style: italic;">For more details, please visit the RTO dashboard.</p>
-          <p>Thank you for your attention.</p>
-          <p>
-            <strong>Best Regards,</strong><br>
-            The Certified Australia Team<br>
-            Email: <a href="mailto:info@certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">info@certifiedaustralia.com.au</a><br>
-            Phone: <a href="tel:1300044927" style="color: #3498db; text-decoration: none;">1300 044 927</a><br>
-            Website: <a href="https://www.certifiedaustralia.com.au" style="color: #3498db; text-decoration: none;">www.certifiedaustralia.com.au</a>
-          </p>`;
-        const emailSubject = "Application Submitted";
-
-        // Push email details into batch
-        batchEmails.push({
-          to: rtoEmail,
-          subject: emailSubject,
-          body: emailBody,
-        });
-      });
-
-      // Send all emails in a batch
-      const emailBatchPromises = batchEmails.map((email) =>
-        sendEmail(email.to, email.body, email.subject)
-      );
-      await Promise.all(emailBatchPromises);
+    const fieldData = documentsDoc.data()[fieldName];
+    if (!fieldData) {
+      return res
+        .status(400)
+        .json({ message: `No file stored for field: ${fieldName}` });
     }
-
-    res.status(200).json({
-      message: "Documents Form updated successfully",
-      files: fileUrls,
+    const { fileName } = fieldData;
+    await bucket.file(fileName).delete();
+    await documentsRef.update({
+      [fieldName]: null,
     });
+
+    return res.status(200).json({ message: "File deleted successfully" });
   } catch (error) {
-    console.log(error);
-    res.status(500).json({ message: error.message });
+    console.error(error);
+    return res.status(500).json({ message: error.message });
   }
 };
-
-module.exports = { DocumentsFormByApplicationId };
+module.exports = {
+  DocumentsFormByApplicationId,
+  uploadSingleFile,
+  deleteSingleFile,
+};
