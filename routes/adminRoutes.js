@@ -16,6 +16,7 @@ const {
   getAdminApplications,
   updateStudentIntakeForm,
   registerAssessor,
+  checkIfUserCanAccess,
 } = require("../controllers/adminController");
 
 const router = express.Router();
@@ -34,5 +35,6 @@ router.post("/resend/:applicationId", resendEmail);
 router.put("/colorToApplication/:applicationId", addColorToApplication);
 router.put("/student-intake-form/:studentFormId", updateStudentIntakeForm);
 router.post("/register-assessor", registerAssessor);
+router.get("/check-access/:userId/:userRole", checkIfUserCanAccess);
 
 module.exports = router;

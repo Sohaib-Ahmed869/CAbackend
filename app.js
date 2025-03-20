@@ -19,6 +19,7 @@ const rtoRoutes = require("./routes/rtoroutes");
 const agentRoutes = require("./routes/agentRoutes");
 const callRoutes = require("./routes/callRoutes");
 const industryRoutes = require("./routes/industryRoutes");
+const restorationRoutes = require("./routes/restorationScript");
 
 const app = express();
 app.use(express.json());
@@ -26,7 +27,7 @@ app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use(
   cors({
-    origin: "https://portal.certifiedaustralia.com.au",
+    origin: "*",
   })
 );
 app.use(logRequest);
@@ -39,6 +40,7 @@ app.use("/api/rto", rtoRoutes);
 app.use("/api/agent", agentRoutes);
 app.use("/api/call", callRoutes);
 app.use("/api/industry", industryRoutes);
+app.use("/api/restoration", restorationRoutes);
 
 // proxy for downloading documents
 

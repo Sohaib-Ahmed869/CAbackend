@@ -694,6 +694,49 @@ const updateStudentIntakeForm = async (req, res) => {
   }
 };
 
+const checkIfUserCanAccess = async (req, res) => {
+  const { userId, userRole } = req.params;
+  console.log("Checking access for:", userId, userRole);
+
+  try {
+    if (!userId || userId === "null") {
+      return res
+        .status(401)
+        .json({ error: true, message: "User ID is required" });
+    }
+
+    const userDoc = await db.collection("users").doc(userId).get();
+
+    if (!userDoc.exists) {
+      return res.status(404).json({ error: true, message: "User not found" });
+    }
+
+    const userData = userDoc.data();
+
+    // Check if user has the required role
+    if (userRole === "admin" && userData.role === "admin") {
+      return res.status(200).json({
+        error: false,
+        message: "Access granted",
+        userType: userData.type,
+      });
+    } else if (userRole === "assessor" && userData.role === "assessor") {
+      return res.status(200).json({ error: false, message: "Access granted" });
+    } else if (userRole === "rto" && userData.role === "rto") {
+      return res.status(200).json({ error: false, message: "Access granted" });
+    } else {
+      return res
+        .status(403)
+        .json({ error: true, message: "Unauthorized access" });
+    }
+  } catch (error) {
+    console.error("Error checking user access:", error);
+    return res
+      .status(500)
+      .json({ error: true, message: "Server error while checking access" });
+  }
+};
+
 module.exports = {
   adminLogin,
   registerAdmin,
@@ -709,4 +752,5 @@ module.exports = {
   getAdminApplications,
   updateStudentIntakeForm,
   registerAssessor,
+  checkIfUserCanAccess,
 };
