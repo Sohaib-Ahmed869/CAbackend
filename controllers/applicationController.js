@@ -10,7 +10,7 @@ const {
 const { Client, Environment } = require("square");
 const squareClient = new Client({
   accessToken: process.env.SQUARE_ACCESS_TOKEN,
-  environment: Environment.Sandbox, // or Environment.Sandbox for testing
+  environment: Environment.Production, // or Environment.Sandbox for testing
 });
 // Update Application Status
 const updateApplicationStatus = async (req, res) => {
@@ -563,10 +563,15 @@ const handleSquareWebhook = async (req, res) => {
         paymentId: payment.id,
       });
 
-      // Use the comprehensive email service instead of the old function
-      await checkApplicationStatusAndSendEmails(applicationId, "payment_made");
-
+      // Send 200 response immediately
       res.status(200).json({ received: true });
+
+      // Process emails asynchronously (after response is sent)
+      sendEmailsAfterPayment(applicationId).catch((error) => {
+        console.error("Error sending emails after webhook:", error);
+      });
+
+      return;
     } else {
       res.status(200).json({ received: true });
     }
@@ -577,6 +582,7 @@ const handleSquareWebhook = async (req, res) => {
 };
 
 // Mark application as paid (used after webhook confirmation)
+// Update the markApplicationAsPaid function to also use asynchronous email sending
 const markApplicationAsPaid = async (req, res, isInternal = false) => {
   const { applicationId } = req.params;
 
@@ -621,7 +627,6 @@ const markApplicationAsPaid = async (req, res, isInternal = false) => {
         payment1Date: new Date().toISOString(),
         paid: true,
         full_paid: false,
-        payment1Date: new Date().toISOString(),
         amount_paid: applicationData.payment1,
       });
     } else {
@@ -643,12 +648,18 @@ const markApplicationAsPaid = async (req, res, isInternal = false) => {
       });
     }
 
-    // Use the comprehensive email service
-    await checkApplicationStatusAndSendEmails(applicationId, "payment_made");
-
     if (!isInternal) {
-      return res.status(200).json({ message: "Application marked as paid" });
+      // Return response immediately
+      res.status(200).json({ message: "Application marked as paid" });
+
+      // Process emails asynchronously (after response is sent)
+      sendEmailsAfterPayment(applicationId).catch((error) => {
+        console.error("Error sending emails after marking as paid:", error);
+      });
+
+      return true;
     }
+
     return true;
   } catch (error) {
     console.error("Error marking application as paid:", error);
@@ -984,7 +995,7 @@ const processPayment = async (req, res) => {
     const amountInCents = Math.round(parseFloat(price) * 100);
 
     const payment = await squareClient.paymentsApi.createPayment({
-      sourceId: 'cnon:card-nonce-ok',
+      sourceId: sourceId, // Use the actual sourceId from the request
       idempotencyKey: `${applicationId}-${Date.now()}`,
       amountMoney: {
         amount: amountInCents,
@@ -1004,10 +1015,15 @@ const processPayment = async (req, res) => {
         });
       }
 
-      // Use the comprehensive email service
-      await checkApplicationStatusAndSendEmails(applicationId, "payment_made");
+      // Return response immediately
+      res.json({ success: true });
 
-      return res.json({ success: true });
+      // Process emails asynchronously (after response is sent)
+      sendEmailsAfterPayment(applicationId).catch((error) => {
+        console.error("Error sending emails after payment:", error);
+      });
+
+      return;
     } else {
       return res
         .status(400)
@@ -1016,6 +1032,21 @@ const processPayment = async (req, res) => {
   } catch (error) {
     console.error("Payment Error:", error);
     return res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+// Separate function for sending emails asynchronously
+const sendEmailsAfterPayment = async (applicationId) => {
+  try {
+    // Use the comprehensive email service
+    await checkApplicationStatusAndSendEmails(applicationId, "payment_made");
+    console.log(`Emails sent successfully for application ${applicationId}`);
+  } catch (error) {
+    console.error(
+      `Error sending emails for application ${applicationId}:`,
+      error
+    );
+    // Log error but don't throw - this runs after response is sent
   }
 };
 
