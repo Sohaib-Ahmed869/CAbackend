@@ -35,35 +35,51 @@
 // };
 
 // module.exports = ipWhitelist;
+const ipaddr = require("ipaddr.js");
+
 const ipWhitelist = (req, res, next) => {
   const isProduction = process.env.NODE_ENV === "production";
   const allowedIps = process.env.ALLOWED_IPS.split(",").map((ip) => ip.trim());
 
-  // Get client IP considering proxy configuration
+  // Get client IP
   const clientIp =
     req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip;
 
-  // Auto-allow localhost in development
+  // Allow localhost in development
   if (!isProduction) {
     const localIps = new Set(["127.0.0.1", "::1", "localhost"]);
-    if (localIps.has(clientIp)) {
-      return next();
-    }
+    if (localIps.has(clientIp)) return next();
   }
 
-  // Convert IPv6 loopback to IPv4 for consistency
+  // Normalize IP (strip IPv6 prefix)
   const normalizedIp = clientIp.replace("::ffff:", "");
 
   // Debug logging
   console.log(`IP Check: ${normalizedIp} [${isProduction ? "PROD" : "DEV"}]`);
   console.log(`Allowed IPs: ${allowedIps.join(", ")}`);
 
-  if (!allowedIps.includes(normalizedIp)) {
+  // IP Validation
+  let isAllowed = false;
+  try {
+    const parsedClient = ipaddr.parse(normalizedIp);
+    isAllowed = allowedIps.some((allowedIp) => {
+      const parsedAllowed = ipaddr.parse(allowedIp);
+      return parsedClient.match(parsedAllowed);
+    });
+  } catch (e) {
+    console.error("IP parsing error:", e);
+    if (isProduction) {
+      // Fail closed in production
+      return res.status(403).json({ message: "Access denied" });
+    }
+  }
+
+  // Block disallowed IPs
+  if (!isAllowed) {
     console.warn(`IP Violation: ${normalizedIp}`);
     return res.status(403).json({
       message: "Office access required",
       ...(!isProduction && {
-        // Debug info only in dev
         debug: {
           detectedIp: normalizedIp,
           allowedIps,
