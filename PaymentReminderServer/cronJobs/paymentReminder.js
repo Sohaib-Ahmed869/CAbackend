@@ -173,6 +173,7 @@ const schedulePaymentReminders = async () => {
     const applicationsSnapshot = await db.collection("applications").get();
     const nowDate = moment().format("YYYY-MM-DD");
     const now = moment();
+    // const now = moment().tz('Australia/Sydney'); // Uncomment for production
 
     for (const doc of applicationsSnapshot.docs) {
       const application = doc.data();
@@ -261,13 +262,40 @@ const schedulePaymentReminders = async () => {
 
       // New direct debit processing logic
       if (autoDebit.enabled && autoDebit.status === "SCHEDULED") {
-        if (now.isSameOrAfter(scheduledTime)) {
-          console.log(`⚡ Processing payment for Application ${applicationId}`);
-          await processScheduledPayment(id);
+        const dueDate = autoDebit.dueDate
+          ? moment(autoDebit.dueDate.toDate())
+          : null;
+        // For production: moment(autoDebit.dueDate.toDate()).tz('Australia/Sydney')
+
+        if (autoDebit.amountDue <= 0) {
+          console.log("⚡ No amount due for direct debit");
+          await UpdateDebitStatus(id, "NO_AMOUNT_DUE");
+          continue;
+        }
+        const paymentStatusChecks = {
+          Payment1: application.paid,
+          Payment2: application.full_paid,
+          fullPayment: application.full_paid,
+        };
+        if (paymentStatusChecks[autoDebit.selectedPayment]) {
+          console.log(`⚡ ${autoDebit.selectedPayment} already paid`);
+          await UpdateDebitStatus(id, "MANUALLY_PAID");
+          continue;
+        }
+
+        if (now.isSameOrAfter(dueDate)) {
+          try {
+            console.log(
+              `⚡ Processing payment for Application ${applicationId}`
+            );
+            await processScheduledPayment(id);
+          } catch (processError) {
+            console.error("❌ Payment processing failed:", processError);
+            await UpdateDebitStatus(id, "FAILED");
+          }
         } else {
-          console.log(
-            `⏳ Payment for ${applicationId} scheduled at ${scheduledTime.format()}`
-          );
+          console.log(`⏳ Payment scheduled at ${scheduledTime.format()}`);
+          // await UpdateDebitStatus(id, "SCHEDULED");
         }
       }
     }
@@ -281,4 +309,16 @@ cron.schedule("*/5 * * * *", async () => {
   await schedulePaymentReminders();
 });
 
+const UpdateDebitStatus = async (applicationId, status) => {
+  try {
+    await db.collection("applications").doc(applicationId).update({
+      "autoDebit.status": status,
+      "autoDebit.updatedAt": new Date().toISOString(),
+    });
+    console.log(`✅ Updated status for ${applicationId} to ${status}`);
+  } catch (error) {
+    console.error("❌ Error updating debit status:", error);
+    throw error; // Rethrow to handle in parent scope
+  }
+};
 module.exports = { schedulePaymentReminders, processScheduledPayment };

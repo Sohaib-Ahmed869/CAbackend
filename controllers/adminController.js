@@ -8,6 +8,256 @@ const {
   checkApplicationStatusAndSendEmails,
 } = require("../utils/applicationEmailService");
 
+// update agent targets
+// Add/Update Targets for Agents
+const updateAgentTargets = async (req, res) => {
+  const { agentId } = req.params;
+  const { targetType, targetValue, date } = req.body;
+
+  // Validate required fields
+  if (!targetType || !targetValue || !date) {
+    return res.status(400).json({
+      success: false,
+      message: "Missing required fields: targetType, targetValue, date",
+    });
+  }
+
+  // Ensure targetValue is a valid number
+  const numericTargetValue = Number(targetValue);
+  if (isNaN(numericTargetValue) || numericTargetValue <= 0) {
+    return res.status(400).json({
+      success: false,
+      message: "Target value must be a positive number",
+    });
+  }
+
+  try {
+    const targetDate = new Date(date);
+
+    // Validate date format
+    if (isNaN(targetDate.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid date format",
+      });
+    }
+
+    const formattedDate = targetDate.toISOString().split("T")[0];
+
+    // Reference Firestore collection (one document per agent)
+    const targetRef = db.collection("targets").doc(agentId);
+
+    // Fetch the existing document
+    const docSnapshot = await targetRef.get();
+    let existingTargets = [];
+
+    if (docSnapshot.exists) {
+      const data = docSnapshot.data();
+      existingTargets = data.targets || [];
+    }
+
+    // Check if an entry for the given date exists
+    const existingEntryIndex = existingTargets.findIndex(
+      (entry) => entry.date === formattedDate
+    );
+
+    if (existingEntryIndex !== -1) {
+      // Update the existing entry
+      existingTargets[existingEntryIndex][targetType] = numericTargetValue;
+    } else {
+      // Create a new entry for the date
+      existingTargets.push({
+        date: formattedDate,
+        [targetType]: numericTargetValue,
+        createdAt: new Date(),
+      });
+    }
+
+    // Update Firestore document
+    await targetRef.set(
+      {
+        targets: existingTargets,
+        updatedAt: new Date(),
+      },
+      { merge: true }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Target updated successfully",
+      agentId,
+      targetType,
+      targetValue: numericTargetValue,
+      date: formattedDate,
+    });
+  } catch (error) {
+    console.error("Target update error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+      code: error.code || "firestore/unknown",
+    });
+  }
+};
+const getAgentTargets = async (req, res) => {
+  try {
+    const snapshot = await db.collection("targets").get();
+
+    if (snapshot.empty) {
+      console.log("No matching documents in Firestore.");
+      return res.status(200).json([]);
+    }
+
+    const targets = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    console.log("🔥 All Fetched Targets from Firestore:", targets);
+
+    res.status(200).json(targets); // Send all data to frontend
+  } catch (error) {
+    console.error("Error fetching targets:", error);
+    res.status(500).json({
+      message: "Failed to fetch targets",
+      error: error.message,
+    });
+  }
+};
+
+// Update Expense of an application
+const updateExpense = async (req, res) => {
+  const { applicationId } = req.params;
+  const { newExpense } = req.body;
+
+  // Validate newExpense
+  if (newExpense === undefined || newExpense === null) {
+    return res.status(400).json({ message: "Expense value is required" });
+  }
+
+  try {
+    // Fetch the application
+    const appRef = db.collection("applications").doc(applicationId);
+    const appDoc = await appRef.get();
+
+    if (!appDoc.exists) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+
+    const applicationData = appDoc.data();
+    const initialFormId = applicationData.initialFormId;
+
+    if (!initialFormId) {
+      return res
+        .status(400)
+        .json({ message: "Initial Form ID not found in application" });
+    }
+
+    // Fetch and update the initialScreeningForm
+    const isfRef = db.collection("initialScreeningForms").doc(initialFormId);
+    const isfDoc = await isfRef.get();
+
+    if (!isfDoc.exists) {
+      return res
+        .status(404)
+        .json({ message: "Initial Screening Form not found" });
+    }
+
+    // Update the expense field with merge option
+    await isfRef.update({ expense: newExpense }, { merge: true });
+
+    res.status(200).json({
+      message: "Expense updated successfully",
+      expense: newExpense,
+    });
+  } catch (error) {
+    console.error("Error updating expense:", error);
+    res
+      .status(500)
+      .json({ message: "Failed to update expense", error: error.message });
+  }
+};
+const getAgents = async (req, res) => {
+  try {
+    const snapshot = await db.collection("users").get();
+    const snapshotdata = snapshot.docs.map((doc) => doc.data());
+    const agents = snapshotdata.filter((user) => user.type === "agent");
+    res.status(200).json(agents);
+  } catch (error) {
+    console.error("Error fetching agents:", error);
+    res
+      .status(500)
+      .json({ message: "Failed to fetch agents", error: error.message });
+  }
+};
+
+// Update Qualification of an application
+const UpdateQualification = async (req, res) => {
+  const id = req.params.id;
+  const { industry, qualification, price, expense } = req.body;
+
+  try {
+    // Reference to the application document
+    const applicationRef = db.collection("applications").doc(id);
+    const applicationSnapshot = await applicationRef.get();
+
+    if (!applicationSnapshot.exists) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+
+    const applicationData = applicationSnapshot.data();
+    const { initialFormId, partialScheme } = applicationData;
+
+    // Prepare update data
+    let updateData = { price };
+
+    // If partialScheme is true, split price into two equal payments
+    if (partialScheme) {
+      const halfPrice = price / 2;
+      updateData.payment1 = halfPrice;
+      updateData.payment2 = halfPrice;
+    }
+
+    // Update the application document
+    await applicationRef.update(updateData);
+
+    // Update initialScreeningForms collection using studentFormId
+    if (initialFormId) {
+      const screeningQuery = await db
+        .collection("initialScreeningForms")
+        .where("id", "==", initialFormId)
+        .get();
+
+      if (!screeningQuery.empty) {
+        // Get the first matching document
+        const screeningDoc = screeningQuery.docs[0].ref;
+
+        // Prepare update data
+        const studentUpdateData = {};
+        if (industry) studentUpdateData.industry = industry;
+        if (qualification)
+          studentUpdateData.lookingForWhatQualification = qualification;
+        if (expense) studentUpdateData.expense = expense;
+
+        // Update the initialScreeningForms document
+        await screeningDoc.update(studentUpdateData);
+      } else {
+        console.warn("No matching initialScreeningForms document found.");
+      }
+    } else {
+      console.warn("No studentFormId found in the application document.");
+    }
+
+    res.status(200).json({
+      message: "Qualification and related fields updated successfully",
+    });
+  } catch (error) {
+    console.error("Error updating qualification:", error);
+    res.status(500).json({ message: "Error updating qualification" });
+  }
+};
+
 // Admin Login
 const adminLogin = async (req, res) => {
   const { email, password } = req.body;
@@ -23,7 +273,7 @@ const adminLogin = async (req, res) => {
 
 // register admin
 const registerAdmin = async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, name, type } = req.body;
 
   try {
     const user = await auth.createUser({
@@ -32,11 +282,16 @@ const registerAdmin = async (req, res) => {
     });
 
     //store in users collection
-    await db.collection("users").doc(user.uid).set({
-      email,
-      role: "admin",
-      id: user.uid,
-    });
+    await db
+      .collection("users")
+      .doc(user.uid)
+      .set({
+        email,
+        role: "admin",
+        type: type,
+        id: user.uid,
+        name: name || "default",
+      });
 
     res.status(200).json({ message: "Admin registered successfully" });
   } catch (error) {
@@ -702,6 +957,7 @@ module.exports = {
   getApplications,
   verifyApplication,
   markApplicationAsPaid,
+  getAgents,
   getDashboardStats,
   addNoteToApplication,
   resendEmail,
@@ -709,4 +965,8 @@ module.exports = {
   getAdminApplications,
   updateStudentIntakeForm,
   registerAssessor,
+  UpdateQualification,
+  updateExpense,
+  getAgentTargets,
+  updateAgentTargets,
 };

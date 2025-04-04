@@ -3,6 +3,8 @@ const {
   getApplications,
   registerRTO,
   getDashboardStats,
+  getAllRtos,
+  sendApplicationToRto,
 } = require("../controllers/rtoController");
 const {
   requestMoreDocuments,
@@ -14,5 +16,6 @@ router.get("/applications", getApplications);
 router.post("/register", registerRTO);
 router.get("/stats", getDashboardStats);
 router.post("/request-documents/:id", requestMoreDocuments);
-
+router.post("/sendApplicationtoRto", sendApplicationToRto);
+router.get("/getAllRtos", getAllRtos);
 module.exports = router;

@@ -22,16 +22,17 @@ const {
   exportApplicationsToCSV,
   addDiscountToApplication,
   getApplicationExpenses,
-  addExpenseToApplication,
   assignApplicationToAdmin,
   updateCallAttempts,
   updateContactStatus,
   unArchiveApplication,
   addAssessorNoteToApplication,
+  addExpenseToApplication,
   sendToRTO,
   addPayment2DeadlineDate,
   getApplicationStats,
   getApplicationById,
+  setupDirectDebit,
 } = require("../controllers/applicationController");
 
 router.delete("/deleteApplication/:applicationId", deleteApplication);
@@ -50,6 +51,7 @@ router.post("/payment/:applicationId", customerPayment);
 router.put("/markAsPaid/:applicationId", markApplicationAsPaid);
 router.put("/dividePayment/:applicationId", dividePaymentIntoTwo);
 router.post("/processPayment/:applicationId", processPayment);
+router.post("/setupDirectDebit/:applicationId", setupDirectDebit);
 router.post("/webhook", handleSquareWebhook);
 router.get("/export", exportApplicationsToCSV);
 router.put("/discount/:applicationId", addDiscountToApplication);

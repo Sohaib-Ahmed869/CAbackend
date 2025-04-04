@@ -19,6 +19,10 @@ const rtoRoutes = require("./routes/rtoroutes");
 const agentRoutes = require("./routes/agentRoutes");
 const callRoutes = require("./routes/callRoutes");
 const industryRoutes = require("./routes/industryRoutes");
+const { startReminderScheduler } = require("./croneJobs/reminderScheduler");
+const { authenticateAdmin } = require("./middleware/authenticate");
+const ipWhitelist = require("./middleware/ipWhiteList");
+const assessorRoutes = require("./routes/assesorRoutes");
 
 const app = express();
 app.use(express.json());
@@ -31,16 +35,19 @@ app.use(
   })
 );
 app.use(logRequest);
+app.set("trust proxy", true);
+const isProduction = process.env.NODE_ENV === "production";
 
 app.use("/api/users", userRoutes);
 app.use("/api/applications", applicationRoutes);
 app.use("/api/auth", authRoutes);
-app.use("/api/admin", adminRoutes);
+app.use("/api/admin", ipWhitelist, adminRoutes);
+// app.use("/api/admin", authenticateAdmin, ipWhitelist, adminRoutes);
 app.use("/api/rto", rtoRoutes);
 app.use("/api/agent", agentRoutes);
 app.use("/api/call", callRoutes);
 app.use("/api/industry", industryRoutes);
-
+app.use("/api/assessor", assessorRoutes);
 // proxy for downloading documents
 
 app.get("/proxy-file", async (req, res) => {
@@ -113,5 +120,13 @@ app.get("/", (req, res) => {
   res.send("Certified Australia is running now again");
 });
 
+startReminderScheduler();
+
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(
+    `Server running in ${
+      isProduction ? "production" : "development"
+    } mode on port ${PORT}`
+  );
+});

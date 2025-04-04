@@ -3,3 +3,4 @@ serviceAccountKey.json
 serviceAccountKey2.json
 .env
 logs/
+PaymentReminderServer/node_modules

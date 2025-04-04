@@ -36,6 +36,7 @@ const registerUser = async (req, res) => {
     locationOfExperience,
     industry,
     lookingForWhatQualification,
+    expense,
     password,
     type,
     price,
@@ -90,6 +91,7 @@ const registerUser = async (req, res) => {
       locationOfExperience,
       industry,
       lookingForWhatQualification,
+      expense: expense || 0,
       id: initialFormRef.id,
     });
 
@@ -533,6 +535,7 @@ const registerUserbyAgent = async (req, res) => {
     locationOfExperience,
     industry,
     lookingForWhatQualification,
+    expense,
     password,
     type,
     price,
@@ -583,6 +586,7 @@ const registerUserbyAgent = async (req, res) => {
       yearsOfExperience,
       locationOfExperience,
       industry,
+      expense: expense || 0,
       lookingForWhatQualification,
       id: null,
     });
