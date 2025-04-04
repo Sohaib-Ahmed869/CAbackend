@@ -39,13 +39,14 @@ const ipaddr = require("ipaddr.js");
 
 const ipWhitelist = (req, res, next) => {
   const isProduction = process.env.NODE_ENV === "production";
-  const allowedIps = process.env.ALLOWED_IPS.split(",").map((ip) => ip.trim());
+  const allowedIps =
+    process.env.ALLOWED_IPS?.split(",").map((ip) => ip.trim()) || [];
 
   // Get client IP
   const clientIp =
     req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip;
 
-  // Allow localhost in development
+  // Auto-allow localhost in development
   if (!isProduction) {
     const localIps = new Set(["127.0.0.1", "::1", "localhost"]);
     if (localIps.has(clientIp)) return next();
@@ -64,17 +65,18 @@ const ipWhitelist = (req, res, next) => {
     const parsedClient = ipaddr.parse(normalizedIp);
     isAllowed = allowedIps.some((allowedIp) => {
       const parsedAllowed = ipaddr.parse(allowedIp);
-      return parsedClient.match(parsedAllowed);
+      // Treat allowed IP as a single-host CIDR
+      const cidr = parsedAllowed.toCIDR(); // e.g., "2001:4860:7:622::fe/128"
+      const [cidrAddr, cidrMask] = ipaddr.parseCIDR(cidr);
+      return parsedClient.match(cidrAddr, cidrMask);
     });
   } catch (e) {
     console.error("IP parsing error:", e);
     if (isProduction) {
-      // Fail closed in production
       return res.status(403).json({ message: "Access denied" });
     }
   }
 
-  // Block disallowed IPs
   if (!isAllowed) {
     console.warn(`IP Violation: ${normalizedIp}`);
     return res.status(403).json({
