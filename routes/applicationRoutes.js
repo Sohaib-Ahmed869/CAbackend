@@ -33,6 +33,7 @@ const {
   getApplicationStats,
   getApplicationById,
   setupDirectDebit,
+  getAgentsKPIStats,
 } = require("../controllers/applicationController");
 
 router.delete("/deleteApplication/:applicationId", deleteApplication);
@@ -51,7 +52,7 @@ router.post("/payment/:applicationId", customerPayment);
 router.put("/markAsPaid/:applicationId", markApplicationAsPaid);
 router.put("/dividePayment/:applicationId", dividePaymentIntoTwo);
 router.post("/processPayment/:applicationId", processPayment);
-router.post("/setupDirectDebit/:applicationId", setupDirectDebit);
+// router.post("/setupDirectDebit/:applicationId", setupDirectDebit);
 router.post("/webhook", handleSquareWebhook);
 router.get("/export", exportApplicationsToCSV);
 router.put("/discount/:applicationId", addDiscountToApplication);
@@ -65,5 +66,7 @@ router.put("/assessorNote/:applicationId", addAssessorNoteToApplication);
 router.put("/sendToRTO/:applicationId", sendToRTO);
 router.get("/stats", getApplicationStats);
 router.get("/applications-by-id/:applicationId", getApplicationById);
+// agent kpi stats
+router.get("/getAgentKpiStats", getAgentsKPIStats);
 
 module.exports = router;

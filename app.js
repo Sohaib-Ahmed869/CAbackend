@@ -31,8 +31,9 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use(
   cors({
     // origin: "https://portal.certifiedaustralia.com.au",
-    // origin: "http://localhost:5173",
-    origin: "http://catestbucketnew.s3-website-ap-southeast-2.amazonaws.com",
+    origin: "http://localhost:5173",
+    // origin: "http://localhost:5174",
+    // origin: "http://catestbucketnew.s3-website-ap-southeast-2.amazonaws.com",
   })
 );
 app.use(logRequest);
@@ -42,7 +43,8 @@ const isProduction = process.env.NODE_ENV === "production";
 app.use("/api/users", userRoutes);
 app.use("/api/applications", applicationRoutes);
 app.use("/api/auth", authRoutes);
-app.use("/api/admin", ipWhitelist, adminRoutes);
+app.use("/api/admin", adminRoutes);
+// app.use("/api/admin", ipWhitelist, adminRoutes);
 // app.use("/api/admin", authenticateAdmin, ipWhitelist, adminRoutes);
 app.use("/api/rto", rtoRoutes);
 app.use("/api/agent", agentRoutes);

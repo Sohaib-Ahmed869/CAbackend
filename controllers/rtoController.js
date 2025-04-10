@@ -339,6 +339,155 @@ const getApplications = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+// paginated Rto Applications
+const getRTOPaginatedApplications = async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      status = "All",
+      dateFilter = "All",
+      sortBy = "date",
+      sortOrder = "desc",
+    } = req.query;
+
+    const pageNum = parseInt(page, 10);
+    const limitNum = parseInt(limit, 10);
+
+    // Fetch and process applications data
+    const [
+      applicationsSnapshot,
+      initialScreeningFormsSnapshot,
+      documentsFormsSnapshot,
+      studentIntakeFormsSnapshot,
+      usersSnapshot,
+    ] = await Promise.all([
+      db.collection("applications").get(),
+      db.collection("initialScreeningForms").get(),
+      db.collection("documents").get(),
+      db.collection("studentIntakeForms").get(),
+      db.collection("users").get(),
+    ]);
+
+    // Create lookup maps
+    const initialScreeningForms = {};
+    initialScreeningFormsSnapshot.docs.forEach((doc) => {
+      initialScreeningForms[doc.id] = doc.data();
+    });
+
+    const documentsForms = {};
+    documentsFormsSnapshot.docs.forEach((doc) => {
+      documentsForms[doc.id] = doc.data();
+    });
+
+    const studentIntakeForms = {};
+    studentIntakeFormsSnapshot.docs.forEach((doc) => {
+      studentIntakeForms[doc.id] = doc.data();
+    });
+
+    const users = {};
+    usersSnapshot.docs.forEach((doc) => {
+      users[doc.id] = doc.data();
+    });
+
+    // Enrich applications with related data
+    let applications = applicationsSnapshot.docs.map((doc) => {
+      const application = doc.data();
+      return {
+        ...application,
+        isf: initialScreeningForms[application.initialFormId] || null,
+        document: documentsForms[application.documentsFormId] || null,
+        sif: studentIntakeForms[application.studentFormId] || null,
+        user: users[application.userId] || null,
+      };
+    });
+
+    // Apply RTO eligibility criteria
+    applications = applications.filter((app) => {
+      const hasStudentForm = app.sif?.firstName;
+      const hasDocuments = app.document?.resume;
+      const isPaymentComplete =
+        app.paid && (!app.partialScheme || app.full_paid);
+      return hasStudentForm && hasDocuments && isPaymentComplete;
+    });
+
+    // Apply filters
+    let filtered = applications.filter((app) => {
+      // Status filter
+      if (status !== "All" && app.currentStatus !== status) return false;
+
+      // Date filter
+      if (dateFilter !== "All") {
+        const days = parseInt(dateFilter);
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - days);
+        const appDate = new Date(app.status?.[0]?.time || 0);
+        if (appDate < cutoffDate) return false;
+      }
+
+      // Search filter
+      if (search) {
+        const searchLower = search.toLowerCase();
+        const matchesId = app.applicationId
+          ?.toLowerCase()
+          .includes(searchLower);
+        const matchesName = `${app.user?.firstName} ${app.user?.lastName}`
+          .toLowerCase()
+          .includes(searchLower);
+        const matchesIndustry = app.isf?.industry
+          ?.toLowerCase()
+          .includes(searchLower);
+        const matchesStatus = app.currentStatus
+          ?.toLowerCase()
+          .includes(searchLower);
+        if (!matchesId && !matchesName && !matchesIndustry && !matchesStatus)
+          return false;
+      }
+
+      return true;
+    });
+
+    // Sorting
+    filtered.sort((a, b) => {
+      const dateA = new Date(a.status?.[0]?.time || 0);
+      const dateB = new Date(b.status?.[0]?.time || 0);
+
+      switch (sortBy) {
+        case "date":
+          return sortOrder === "asc" ? dateA - dateB : dateB - dateA;
+        case "name":
+          const nameA = `${a.user?.firstName} ${a.user?.lastName}`;
+          const nameB = `${b.user?.firstName} ${b.user?.lastName}`;
+          return sortOrder === "asc"
+            ? nameA.localeCompare(nameB)
+            : nameB.localeCompare(nameA);
+        case "status":
+          return sortOrder === "asc"
+            ? a.currentStatus.localeCompare(b.currentStatus)
+            : b.currentStatus.localeCompare(a.currentStatus);
+        default:
+          return 0;
+      }
+    });
+
+    // Pagination
+    const startIndex = (pageNum - 1) * limitNum;
+    const endIndex = startIndex + limitNum;
+    const paginated = filtered.slice(startIndex, endIndex);
+
+    res.status(200).json({
+      applications: paginated,
+      totalApplications: filtered.length,
+      totalPages: Math.ceil(filtered.length / limitNum),
+      currentPage: pageNum,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+//end
 
 const registerRTO = async (req, res) => {
   try {
@@ -439,4 +588,5 @@ module.exports = {
   registerRTO,
   getDashboardStats,
   sendApplicationToRto,
+  getRTOPaginatedApplications,
 };

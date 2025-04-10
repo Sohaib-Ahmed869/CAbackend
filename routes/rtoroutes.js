@@ -5,6 +5,7 @@ const {
   getDashboardStats,
   getAllRtos,
   sendApplicationToRto,
+  getRTOPaginatedApplications,
 } = require("../controllers/rtoController");
 const {
   requestMoreDocuments,
@@ -13,6 +14,7 @@ const {
 const router = express.Router();
 
 router.get("/applications", getApplications);
+router.get("/paginated-rto-applications", getRTOPaginatedApplications);
 router.post("/register", registerRTO);
 router.get("/stats", getDashboardStats);
 router.post("/request-documents/:id", requestMoreDocuments);

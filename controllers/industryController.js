@@ -74,7 +74,7 @@ exports.deleteIndustry = async (req, res) => {
 
 // Controller to add Certification to Industry
 exports.addCertificationToIndustry = async (req, res) => {
-  const { industryId, qualification, price, type } = req.body;
+  const { industryId, expense, qualification, price, type } = req.body;
 
   console.log(req.body);
   try {
@@ -82,6 +82,7 @@ exports.addCertificationToIndustry = async (req, res) => {
       industryId,
       qualification,
       price,
+      expense,
       type,
     });
 
