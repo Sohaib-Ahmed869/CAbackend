@@ -391,7 +391,7 @@ const schedulePaymentReminders = async () => {
             console.log(
               `⚡ Real-time update detected for ${app.applicationId}`
             );
-            await handleAutoDebitUpdate(app);
+            await handleAutoDebitUpdate(app, activeJobs);
           }
         });
       });
@@ -500,7 +500,7 @@ const schedulePaymentReminders = async () => {
 
       if (
         autoDebit.enabled &&
-        autoDebit.status === "SCHEDULED" &&
+        (autoDebit.status === "SCHEDULED" || autoDebit.status === "FAILED") &&
         !scheduledJobs?.payment
       ) {
         console.log(
@@ -591,13 +591,12 @@ const schedulePaymentReminders = async () => {
 //     }
 //   }
 // }
-async function handleAutoDebitUpdate(application) {
+async function handleAutoDebitUpdate(application, activeJobs) {
   const docRef = db.collection("applications").doc(application.id);
   const now = moment();
 
   if (
     application.autoDebit?.dueDate &&
-    application.scheduledJobs?.paymentTime &&
     application.autoDebit?.status === "SCHEDULED"
   ) {
     const dueDate = moment(application.autoDebit.dueDate.toDate());
@@ -628,7 +627,7 @@ async function handleAutoDebitUpdate(application) {
 //   });
 // };
 const startDailyReminderScheduler = () => {
-  cron.schedule("*/15 * * * *", async () => {
+  cron.schedule("* * * * *", async () => {
     console.log("\n⏰ Running job after  15 min...");
     await schedulePaymentReminders();
   });

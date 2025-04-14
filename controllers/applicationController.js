@@ -1177,6 +1177,7 @@ const processScheduledPayment = async (applicationId) => {
     const AppId = applicationDoc.data().applicationId;
 
     const appData = applicationDoc.data();
+    const price = applicationDoc.data().price;
     const autoDebit = appData.autoDebit || {};
 
     if (!autoDebit.enabled || autoDebit.status !== "SCHEDULED") return;
@@ -1196,7 +1197,7 @@ const processScheduledPayment = async (applicationId) => {
     if (payment.result.payment.status === "COMPLETED") {
       const updateData = {
         "autoDebit.status": "COMPLETED",
-        amount_paid: appData.Price,
+        amount_paid: price,
         paymentDate: new Date().toISOString(),
         full_paid: true,
       };

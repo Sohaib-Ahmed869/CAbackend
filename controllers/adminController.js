@@ -678,16 +678,18 @@ const getPaginatedApplications = async (req, res) => {
         users[doc.id] = doc.data();
       });
 
-      applications = applicationsSnapshot.docs.map((doc) => {
-        const application = doc.data();
-        return {
-          ...application,
-          isf: initialScreeningForms[application.initialFormId] || null,
-          document: documentsForms[application.documentsFormId] || null,
-          sif: studentIntakeForms[application.studentFormId] || null,
-          user: users[application.userId] || null,
-        };
-      });
+      applications = applicationsSnapshot.docs
+        .map((doc) => {
+          const application = doc.data();
+          return {
+            ...application,
+            isf: initialScreeningForms[application.initialFormId] || null,
+            document: documentsForms[application.documentsFormId] || null,
+            sif: studentIntakeForms[application.studentFormId] || null,
+            user: users[application.userId] || null,
+          };
+        })
+        .filter((app) => !app.archive);
 
       cache.set("applications", applications);
     }
@@ -1364,17 +1366,20 @@ const getAssessedApplications = async (req, res) => {
 
     // Execute base query
     const applicationsSnapshot = await query.get();
+
     let applications = await Promise.all(
       applicationsSnapshot.docs.map(async (doc) => {
         const appData = doc.data();
 
         // Fetch related data
-        const [user, isf] = await Promise.all([
+        const [user, isf, sif, document] = await Promise.all([
           db.collection("users").doc(appData.userId).get(),
           db
             .collection("initialScreeningForms")
             .doc(appData.initialFormId)
             .get(),
+          db.collection("studentIntakeForms").doc(appData.studentFormId).get(),
+          db.collection("documents").doc(appData.documentsFormId).get(),
         ]);
 
         return {
@@ -1382,10 +1387,11 @@ const getAssessedApplications = async (req, res) => {
           ...appData,
           user: user.exists ? user.data() : null,
           isf: isf.exists ? isf.data() : null,
+          sif: sif.exists ? sif.data() : null,
+          document: document.exists ? document.data() : null,
         };
       })
     );
-
     // Status filter
     if (statusFilter !== "All") {
       applications = applications.filter(

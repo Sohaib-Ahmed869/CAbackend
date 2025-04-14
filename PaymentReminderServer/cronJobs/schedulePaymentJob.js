@@ -62,6 +62,7 @@ const schedulePaymentJob = async (application, docRef, now, activeJobs) => {
       console.error(`❌ Failed immediate payment for ${applicationId}:`, error);
       await docRef.update({
         "scheduledJobs.payment": "failed",
+        "scheduledJobs.payment": "failed",
         "autoDebit.status": "FAILED",
         "autoDebit.error": error.message,
         "autoDebit.failedAt": new Date().toISOString(),
@@ -116,7 +117,7 @@ const schedulePaymentJob = async (application, docRef, now, activeJobs) => {
         );
         await docRef.update({
           "scheduledJobs.payment": "failed",
-          "autoDebit.status": "FAILED",
+          "scheduledJobs.paymentTime": dueDate.toISOString(),
           "autoDebit.error": error.message,
           "autoDebit.failedAt": new Date().toISOString(),
         });

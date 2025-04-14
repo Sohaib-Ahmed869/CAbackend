@@ -405,18 +405,42 @@ const getRTOPaginatedApplications = async (req, res) => {
 
     // Apply RTO eligibility criteria
     applications = applications.filter((app) => {
-      const hasStudentForm = app.sif?.firstName;
+      const hasStudentIntakeForm = app.studentIntakeFormSubmitted == true;
+      const DocumentsUploaded = app.documentsUploaded == true;
       const hasDocuments = app.document?.resume;
       const isPaymentComplete =
         app.paid && (!app.partialScheme || app.full_paid);
-      return hasStudentForm && hasDocuments && isPaymentComplete;
+      return (
+        hasDocuments &&
+        isPaymentComplete &&
+        hasStudentIntakeForm &&
+        DocumentsUploaded
+      );
     });
 
     // Apply filters
     let filtered = applications.filter((app) => {
       // Status filter
-      if (status !== "All" && app.currentStatus !== status) return false;
+      if (status !== "All") {
+        let statusMatch = false;
 
+        if (status === "Certificate Generated") {
+          statusMatch = app.currentStatus === "Certificate Generated";
+        } else if (status === "Waiting for Verification") {
+          // Check if status is "Sent to Assessor" and not yet assessed
+          statusMatch =
+            app.currentStatus !== "Certificate Generated" && !app.assessed;
+        } else if (status === "Certificate not Issued") {
+          statusMatch =
+            app.currentStatus !== "Certificate Generated" &&
+            app.certificateId == null;
+          // Check if status is "Sent to Assessor" and already assessed
+        } else {
+          statusMatch = app.currentStatus === status;
+        }
+
+        if (!statusMatch) return false;
+      }
       // Date filter
       if (dateFilter !== "All") {
         const days = parseInt(dateFilter);
