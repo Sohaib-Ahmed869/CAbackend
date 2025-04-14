@@ -31,7 +31,8 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use(
   cors({
     // origin: "https://portal.certifiedaustralia.com.au",
-    origin: "http://localhost:5173",
+    // origin: "http://localhost:5173",
+    origin: "https://ca-ruby.vercel.app/",
     // origin: "http://catestbucketnew.s3-website-ap-southeast-2.amazonaws.com",
   })
 );
