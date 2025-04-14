@@ -1934,60 +1934,236 @@ const getDashboardStats = async (req, res) => {
 };
 
 //get charts data
+// const getChartData = async (req, res) => {
+//   try {
+//     const userId = req.params.id;
+//     const agentFilter = req.query.agentId;
+
+//     // Get user document with field selection
+//     const userDocSnap = await db.collection("users").doc(userId).get();
+//     if (!userDocSnap.exists) {
+//       return res.status(404).json({ message: "User not found" });
+//     }
+
+//     // Optimized Firestore queries
+//     let applicationsQuery = db.collection("applications");
+
+//     // Apply agent filter at query level using index
+//     if (agentFilter && agentFilter !== "reset") {
+//       applicationsQuery = applicationsQuery.where(
+//         "assignedAdmin",
+//         "==",
+//         agentFilter
+//       );
+//     }
+
+//     // Select only necessary fields to reduce payload
+//     const applicationsSnapshot = await applicationsQuery
+//       .select(
+//         "status",
+//         "paid",
+//         "currentStatus",
+//         "color",
+//         "initialFormId",
+//         "full_paid",
+//         "amount_paid",
+//         "partialScheme",
+//         "payment1",
+//         "payment2"
+//       )
+//       .get();
+
+//     // Get initial form IDs in batch
+//     const initialFormIds = [
+//       ...new Set(
+//         applicationsSnapshot.docs
+//           .map((doc) => doc.data().initialFormId)
+//           .filter(Boolean)
+//       ),
+//     ];
+
+//     const isfPromises = [];
+//     const batchSize = 10; // Firestore's 'in' limit
+//     for (let i = 0; i < initialFormIds.length; i += batchSize) {
+//       const batch = initialFormIds.slice(i, i + batchSize);
+//       isfPromises.push(
+//         db
+//           .collection("initialScreeningForms")
+//           .where(admin.firestore.FieldPath.documentId(), "in", batch)
+//           .select("lookingForWhatQualification")
+//           .get()
+//       );
+//     }
+
+//     const isfSnapshots = await Promise.all(isfPromises);
+//     const initialScreeningForms = Object.assign(
+//       {},
+//       ...isfSnapshots.map((snapshot) =>
+//         Object.fromEntries(snapshot.docs.map((doc) => [doc.id, doc.data()]))
+//       )
+//     );
+
+//     // Process documents
+//     const applicationsDocs = applicationsSnapshot.docs.map((doc) => ({
+//       id: doc.id,
+//       ...doc.data(),
+//       // Add lightweight date processing
+//       createdAt: doc.data().status?.[0]?.time?.toDate?.() || null,
+//     }));
+
+//     // Process charts
+//     const chartsData = processChartsData(
+//       applicationsDocs,
+//       initialScreeningForms
+//     );
+
+//     // Optimized percentage calculation
+//     const totalLeads = Object.values(chartsData.colorStatusCount).reduce(
+//       (a, b) => a + b,
+//       0
+//     );
+//     const calculatePercentage = (value) =>
+//       totalLeads > 0 ? (value / totalLeads) * 100 : 0;
+
+//     return res.status(200).json({
+//       charts: {
+//         ...chartsData,
+//         colorStatusData: {
+//           labels: ["Hot Lead", "Warm Lead", "Cold Lead"],
+//           series: [
+//             calculatePercentage(chartsData.colorStatusCount.hotLead),
+//             calculatePercentage(chartsData.colorStatusCount.warmLead),
+//             calculatePercentage(chartsData.colorStatusCount.coldLead),
+//           ],
+//           numbers: [
+//             chartsData.colorStatusCount.hotLead,
+//             chartsData.colorStatusCount.warmLead,
+//             chartsData.colorStatusCount.coldLead,
+//           ],
+//         },
+//       },
+//     });
+//   } catch (error) {
+//     console.error("Error getting chart data:", error);
+//     return res.status(500).json({ message: error.message });
+//   }
+// };
+
 const getChartData = async (req, res) => {
   try {
     const userId = req.params.id;
-    const agentFilter = req.query.agentId; // Get agent filter from query params
+    const agentFilter = req.query.agentId;
 
-    // Get the user document
+    // Get user document with field selection
     const userDocSnap = await db.collection("users").doc(userId).get();
     if (!userDocSnap.exists) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Fetch applications
-    const applicationsSnapshot = await db.collection("applications").get();
-    let applicationsDocs = applicationsSnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-    const isfSnapshot = await db.collection("initialScreeningForms").get();
-    const initialScreeningForms = {};
-    isfSnapshot.docs.forEach((doc) => {
-      initialScreeningForms[doc.id] = doc.data();
-    });
+    // Optimized Firestore queries
+    let applicationsQuery = db.collection("applications");
 
-    // Apply agent filter if provided
+    // Apply agent filter at query level using index
     if (agentFilter && agentFilter !== "reset") {
-      applicationsDocs = applicationsDocs.filter(
-        (app) => app.assignedAdmin === agentFilter
+      applicationsQuery = applicationsQuery.where(
+        "assignedAdmin",
+        "==",
+        agentFilter
       );
     }
 
-    // Process chart data
+    // Select only necessary fields to reduce payload
+    const applicationsSnapshot = await applicationsQuery
+      .select(
+        "status",
+        "paid",
+        "currentStatus",
+        "color",
+        "initialFormId",
+        "full_paid",
+        "amount_paid",
+        "partialScheme",
+        "payment1",
+        "payment2",
+        "studentIntakeFormSubmitted",
+        "documentsUploaded",
+        "assessed"
+      )
+      .get();
+
+    // Get initial form IDs in batch
+    const initialFormIds = [
+      ...new Set(
+        applicationsSnapshot.docs
+          .map((doc) => doc.data().initialFormId)
+          .filter(Boolean)
+      ),
+    ];
+
+    // Process initial form IDs by fetching documents individually
+    // and combining results
+    let initialScreeningForms = {};
+
+    if (initialFormIds.length > 0) {
+      // Fetch each document individually without using select()
+      const isfPromises = initialFormIds.map((formId) =>
+        db
+          .collection("initialScreeningForms")
+          .doc(formId)
+          .get()
+          .then((doc) => {
+            if (doc.exists) {
+              // Extract only the fields we need from the document data
+              const data = doc.data();
+              return [
+                doc.id,
+                {
+                  lookingForWhatQualification:
+                    data.lookingForWhatQualification || null,
+                },
+              ];
+            }
+            return null;
+          })
+      );
+
+      const results = await Promise.all(isfPromises);
+      // Filter out any null results and convert to object
+      initialScreeningForms = Object.fromEntries(
+        results.filter((result) => result !== null)
+      );
+    }
+
+    // Process documents
+    const applicationsDocs = applicationsSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+      // Add lightweight date processing
+      createdAt: doc.data().status?.[0]?.time?.toDate?.() || null,
+    }));
+
+    // Process charts
     const chartsData = processChartsData(
       applicationsDocs,
       initialScreeningForms
     );
 
-    return res.status(200).json({
+    // Optimized percentage calculation
+    const totalLeads = Object.values(chartsData.colorStatusCount).reduce(
+      (a, b) => a + b,
+      0
+    );
+    const calculatePercentage = (value) =>
+      totalLeads > 0 ? (value / totalLeads) * 100 : 0;
+    const responseData = {
       charts: {
         ...chartsData,
         colorStatusData: {
           labels: ["Hot Lead", "Warm Lead", "Cold Lead"],
           series: [
-            (chartsData.colorStatusCount.hotLead /
-              (chartsData.colorStatusCount.hotLead +
-                chartsData.colorStatusCount.warmLead +
-                chartsData.colorStatusCount.coldLead) || 0) * 100,
-            (chartsData.colorStatusCount.warmLead /
-              (chartsData.colorStatusCount.hotLead +
-                chartsData.colorStatusCount.warmLead +
-                chartsData.colorStatusCount.coldLead) || 0) * 100,
-            (chartsData.colorStatusCount.coldLead /
-              (chartsData.colorStatusCount.hotLead +
-                chartsData.colorStatusCount.warmLead +
-                chartsData.colorStatusCount.coldLead) || 0) * 100,
+            calculatePercentage(chartsData.colorStatusCount.hotLead),
+            calculatePercentage(chartsData.colorStatusCount.warmLead),
+            calculatePercentage(chartsData.colorStatusCount.coldLead),
           ],
           numbers: [
             chartsData.colorStatusCount.hotLead,
@@ -1996,14 +2172,15 @@ const getChartData = async (req, res) => {
           ],
         },
       },
-    });
+    };
+
+    // Cache the response data
+    return res.status(200).json(responseData);
   } catch (error) {
     console.error("Error getting chart data:", error);
     return res.status(500).json({ message: error.message });
   }
 };
-
-// Complete chart processing function to match frontend components
 const processChartsData = (applications, initialScreeningForms) => {
   // Weekly Data
   const weeklyData = {

@@ -481,7 +481,7 @@ const schedulePaymentReminders = async () => {
           )}`
         );
 
-        if (scheduleEmailJob(application, doc.ref, now)) {
+        if (scheduleEmailJob(application, doc.ref, now, activeJobs)) {
           emailsScheduled++;
         } else {
           skipped++;

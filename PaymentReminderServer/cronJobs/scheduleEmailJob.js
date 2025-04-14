@@ -4,7 +4,7 @@ const { db } = require("../config/firebase");
 const { sendEmail } = require("../utils/emailUtil");
 const moment = require("moment");
 
-const scheduleEmailJob = async (application, docRef, now) => {
+const scheduleEmailJob = async (application, docRef, now, activeJobs) => {
   const {
     id: applicationId,
     applicationId: appId,
