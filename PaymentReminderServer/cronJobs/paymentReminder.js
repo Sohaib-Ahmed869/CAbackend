@@ -595,28 +595,42 @@ async function handleAutoDebitUpdate(application, activeJobs) {
   const docRef = db.collection("applications").doc(application.id);
   const now = moment();
 
+  // Check if auto debit is enabled and scheduled
   if (
-    application.autoDebit?.dueDate &&
-    application.autoDebit?.status === "SCHEDULED"
+    application.autoDebit?.status === "SCHEDULED" &&
+    application.autoDebit?.dueDate
   ) {
-    const dueDate = moment(application.autoDebit.dueDate.toDate());
-    const scheduledTime = moment(application.scheduledJobs.paymentTime);
+    // Check if job is already scheduled
+    if (application.scheduledJobs?.paymentTime) {
+      const dueDate = moment(application.autoDebit.dueDate.toDate());
+      const scheduledTime = moment(application.scheduledJobs.paymentTime);
 
-    if (!dueDate.isSame(scheduledTime)) {
-      console.log(`🔄 Rescheduling due to real-time update`);
+      // Only reschedule if times are different
+      if (!dueDate.isSame(scheduledTime)) {
+        console.log(
+          `🔄 Rescheduling due to real-time update for ${application.applicationId}`
+        );
 
-      // 1. Cancel existing job
-      cancelJobs(application.id, activeJobs); // Pass activeJobs to cancelJobs
+        // 1. Cancel existing job
+        cancelJobs(application.id, activeJobs);
 
-      // 2. Clear stale scheduling data in Firestore
-      await docRef.update({
-        "scheduledJobs.payment": null,
-        "scheduledJobs.paymentTime": null,
-      });
+        // 2. Clear existing schedule data
+        await docRef.update({
+          "scheduledJobs.payment": null,
+          "scheduledJobs.paymentTime": null,
+        });
 
-      // 3. Schedule new job with updated time
+        // 3. Schedule new job with updated time
+        await schedulePaymentJob(application, docRef, now, activeJobs);
+      }
+    } else {
+      // No existing job - schedule new one
+      console.log(`⏳ First-time scheduling for ${application.applicationId}`);
       await schedulePaymentJob(application, docRef, now, activeJobs);
     }
+  } else {
+    console.log(`ℹ️ Auto debit not scheduled for ${application.applicationId}`);
+    cancelJobs(application.id, activeJobs);
   }
 }
 // Schedule the above function to run at 8 AM daily
@@ -626,13 +640,18 @@ async function handleAutoDebitUpdate(application, activeJobs) {
 //     await schedulePaymentReminders();
 //   });
 // };
+// const startDailyReminderScheduler = () => {
+//   cron.schedule("* * * * *", async () => {
+//     console.log("\n⏰ Running job after  15 min...");
+//     await schedulePaymentReminders();
+//   });
+// };
 const startDailyReminderScheduler = () => {
-  cron.schedule("* * * * *", async () => {
-    console.log("\n⏰ Running job after  15 min...");
+  cron.schedule("*/5 * * * *", async () => {
+    console.log("\n⏰ Running job every 5 minutes...");
     await schedulePaymentReminders();
   });
 };
-
 module.exports = {
   schedulePaymentReminders,
   startDailyReminderScheduler,
