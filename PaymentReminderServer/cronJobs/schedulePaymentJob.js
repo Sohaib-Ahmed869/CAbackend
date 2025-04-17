@@ -1,10 +1,7 @@
 const schedule = require("node-schedule");
 const { db } = require("../config/firebase");
 const moment = require("moment");
-const {
-  processScheduledPayment,
-} = require("../../controllers/applicationController");
-
+const { processScheduledPayment } = require("./processScheduledPayment");
 const schedulePaymentJob = async (application, docRef, now, activeJobs) => {
   const {
     id: applicationId,

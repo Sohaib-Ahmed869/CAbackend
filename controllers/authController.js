@@ -1,7 +1,7 @@
 const { auth, db } = require("../firebase");
 const jwt = require("jsonwebtoken");
 const { sendEmail } = require("../utils/emailUtil");
-const adminEmail = "asadawan16900@gmail.com";
+const adminEmail = "saifneonalpha@gmail.com";
 
 const newLogin = async (req, res) => {
   const { idToken } = req.body;
@@ -39,7 +39,7 @@ const newLogin = async (req, res) => {
         role === "rto" || role === "assessor" ? email : adminEmail;
       // Send email
       const emailResponse = await sendVerificationEmail(
-        emailOption,
+        adminEmail,
         code,
         role,
         type
@@ -173,7 +173,7 @@ const resend2FACode = async (req, res) => {
     });
 
     const emailResponse = await sendVerificationEmail(
-      emailOption,
+      adminEmail,
       newCode,
       role,
       type

@@ -572,25 +572,6 @@ const schedulePaymentReminders = async () => {
     console.error(error.stack);
   }
 };
-// async function handleAutoDebitUpdate(application) {
-//   const docRef = db.collection("applications").doc(application.id);
-//   const now = moment();
-
-//   // Recheck scheduling logic
-//   if (
-//     application.autoDebit?.dueDate &&
-//     application.scheduledJobs?.paymentTime &&
-//     application.autoDebit?.status === "SCHEDULED"
-//   ) {
-//     const dueDate = moment(application.autoDebit.dueDate.toDate());
-//     const scheduledTime = moment(application.scheduledJobs.paymentTime);
-
-//     if (!dueDate.isSame(scheduledTime)) {
-//       console.log(`🔄 Rescheduling due to real-time update`);
-//       await schedulePaymentJob(application, docRef, now, activeJobs);
-//     }
-//   }
-// }
 async function handleAutoDebitUpdate(application, activeJobs) {
   const docRef = db.collection("applications").doc(application.id);
   const now = moment();
