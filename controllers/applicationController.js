@@ -1373,6 +1373,7 @@ const processPayment = async (req, res) => {
           message: "Failed to mark application as paid",
         });
       }
+      res.json({ success: true });
 
       // Get updated application data
       const applicationRef = db.collection("applications").doc(applicationId);
@@ -1571,7 +1572,6 @@ const processPayment = async (req, res) => {
       }
 
       await checkApplicationStatusAndSendEmails(applicationId, "payment_made");
-      return res.json({ success: true });
     } else {
       return res
         .status(400)
