@@ -46,11 +46,17 @@ const scheduleEmailJob = async (application, docRef, now, activeJobs) => {
     }
 
     // Determine scheduled time (from original cron logic)
-    const scheduledTime = moment(
-      `${payment2Deadline} ${payment2DeadlineTime}`,
-      "YYYY-MM-DD hh:mm A"
-    );
-
+    // const scheduledTime = moment(
+    //   `${payment2Deadline} ${payment2DeadlineTime}`,
+    //   "YYYY-MM-DD hh:mm A"
+    // );
+    const scheduledTime = moment
+      .tz(
+        `${payment2Deadline} ${payment2DeadlineTime}`,
+        "YYYY-MM-DD hh:mm A",
+        "Asia/Karachi" // User's local timezone
+      )
+      .utc();
     // Schedule behavior from original cron implementation
     if (now.isSameOrAfter(scheduledTime)) {
       // Immediate send if within 24h window

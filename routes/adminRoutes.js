@@ -28,6 +28,8 @@ const {
   getApplicationsStats,
   getPaymentStats,
   getPaginatedPayments,
+  getLeadsStats,
+  getFinanceStats,
 } = require("../controllers/adminController");
 
 const router = express.Router();
@@ -60,4 +62,7 @@ router.get("/getAgents", getAgents);
 router.get("/targets", getAgentTargets);
 router.patch("/targets/:agentId", updateAgentTargets);
 router.put("/auto-debit/:applicationId", updateAutoDebit);
+// reporting
+router.get("/finance-stats", getFinanceStats);
+router.get("/leads-stats", getLeadsStats);
 module.exports = router;

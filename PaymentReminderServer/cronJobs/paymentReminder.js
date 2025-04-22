@@ -470,11 +470,17 @@ const schedulePaymentReminders = async () => {
       }
 
       if (payment2Deadline && payment2DeadlineTime && !scheduledJobs?.email) {
-        const scheduledTime = moment(
-          `${payment2Deadline} ${payment2DeadlineTime}`,
-          "YYYY-MM-DD hh:mm A"
-        );
-
+        // const scheduledTime = moment(
+        //   `${payment2Deadline} ${payment2DeadlineTime}`,
+        //   "YYYY-MM-DD hh:mm A"
+        // );
+        const scheduledTime = moment
+          .tz(
+            `${payment2Deadline} ${payment2DeadlineTime}`,
+            "YYYY-MM-DD hh:mm A",
+            "Asia/Karachi" // User's local timezone
+          )
+          .utc();
         console.log(
           `📧 Email reminder time: ${scheduledTime.format(
             "YYYY-MM-DD HH:mm:ss"

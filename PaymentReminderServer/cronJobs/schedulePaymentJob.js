@@ -16,7 +16,7 @@ const schedulePaymentJob = async (application, docRef, now, activeJobs) => {
     return false;
   }
 
-  const dueDate = moment(autoDebit.dueDate.toDate());
+  const dueDate = moment.utc(autoDebit.dueDate.toDate());
 
   // Avoid duplicate scheduling
   if (activeJobs.has(`payment-${applicationId}`)) {
@@ -76,7 +76,7 @@ const schedulePaymentJob = async (application, docRef, now, activeJobs) => {
       )}`
     );
 
-    const job = schedule.scheduleJob(dueDate.toDate(), async () => {
+    const job = schedule.scheduleJob(dueDate.utc().toDate(), async () => {
       console.log(
         `🚀 EXECUTING payment job for application ${appId || applicationId}`
       );
@@ -94,7 +94,7 @@ const schedulePaymentJob = async (application, docRef, now, activeJobs) => {
           );
           await latestDoc.ref.update({
             "scheduledJobs.payment": "skipped",
-            "autoDebit.skippedAt": new Date().toISOString(),
+            "autoDebit.skippedAt": new Date().utc().toISOString(),
           });
           return;
         }
@@ -103,7 +103,7 @@ const schedulePaymentJob = async (application, docRef, now, activeJobs) => {
 
         await latestDoc.ref.update({
           "scheduledJobs.payment": "completed",
-          "autoDebit.processedAt": new Date().toISOString(),
+          "autoDebit.processedAt": new Date().utc().toISOString(),
         });
 
         console.log(`✅ Scheduled payment completed for ${applicationId}`);
@@ -114,7 +114,8 @@ const schedulePaymentJob = async (application, docRef, now, activeJobs) => {
         );
         await docRef.update({
           "scheduledJobs.payment": "failed",
-          "scheduledJobs.paymentTime": dueDate.toISOString(),
+          // "scheduledJobs.paymentTime": dueDate.toISOString(),
+          "scheduledJobs.paymentTime": dueDate.utc().toISOString(),
           "autoDebit.error": error.message,
           "autoDebit.failedAt": new Date().toISOString(),
         });
@@ -128,7 +129,8 @@ const schedulePaymentJob = async (application, docRef, now, activeJobs) => {
     activeJobs.set(`payment-${applicationId}`, job);
     await docRef.update({
       "scheduledJobs.payment": "pending",
-      "scheduledJobs.paymentTime": dueDate.toISOString(),
+      // "scheduledJobs.paymentTime": dueDate.toISOString(),
+      "scheduledJobs.paymentTime": dueDate.utc().toISOString(),
     });
 
     return true;

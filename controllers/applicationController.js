@@ -1387,19 +1387,11 @@ const processPayment = async (req, res) => {
         applicationData.autoDebit?.enabled === true &&
         applicationData.full_paid === false
       ) {
-        // Parse payment2 deadline details
-        const [time, modifier] =
-          applicationData.payment2DeadlineTime.split(" ");
-        const [hoursStr, minutesStr] = time.split(":");
-        let hours = parseInt(hoursStr);
-        const minutes = parseInt(minutesStr);
-
-        if (modifier === "PM" && hours !== 12) hours += 12;
-        if (modifier === "AM" && hours === 12) hours = 0;
-
-        const deadlineDate = new Date(applicationData.payment2Deadline);
-        deadlineDate.setHours(hours, minutes, 0, 0);
-
+        const deadlineMoment = moment.tz(
+          `${applicationData.payment2Deadline} ${applicationData.payment2DeadlineTime}`,
+          "YYYY-MM-DD hh:mm A",
+          "Asia/Karachi"
+        );
         // Create Square customer
         const customerResponse = await squareClient.customersApi.createCustomer(
           {
@@ -1417,19 +1409,17 @@ const processPayment = async (req, res) => {
           },
         });
 
-        // Update auto debit details in Firestore
+        // Store dates as UTC
         await applicationRef.update({
           "autoDebit.squareCustomerId": customerResponse.result.customer.id,
           "autoDebit.squareCardId": cardResponse.result.card.id,
           "autoDebit.amountDue": applicationData.payment2,
-          "autoDebit.dueDate": deadlineDate,
+          "autoDebit.dueDate": deadlineMoment.utc().toDate(),
           "autoDebit.status": "SCHEDULED",
           "autoDebit.paymentTime": applicationData.payment2DeadlineTime,
           "autoDebit.selectedPayment": "payment2",
           "autoDebit.updatedAt": new Date().toISOString(),
-        });
-
-        // Prepare confirmation email
+        }); // Prepare confirmation email
         const userRef = await db.collection("users").doc(userId).get();
         const userEmail = userRef.data().email;
         const AppId = applicationData.applicationId;
@@ -1815,6 +1805,7 @@ const assignApplicationToAdmin = async (req, res) => {
 
     await applicationRef.update({
       assignedAdmin: adminName,
+      applicationAssignmentDate: new Date().toISOString(),
     });
 
     res.status(200).json({

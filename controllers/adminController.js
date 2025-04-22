@@ -8,7 +8,6 @@ const {
   checkApplicationStatusAndSendEmails,
 } = require("../utils/applicationEmailService");
 
-// update agent targets
 // Add/Update Targets for Agents
 const updateAgentTargets = async (req, res) => {
   const { agentId } = req.params;
@@ -2611,6 +2610,147 @@ const updateStudentIntakeForm = async (req, res) => {
   }
 };
 
+// Reporting Data
+
+const getLeadsStats = async (req, res) => {
+  try {
+    const { dateFilter, start, end } = req.query;
+    let filter;
+
+    if (dateFilter && dateFilter !== "all") {
+      filter = { type: dateFilter };
+      if (dateFilter === "custom") {
+        filter.start = start;
+        filter.end = end;
+      }
+    }
+
+    const [agents, applications] = await Promise.all([
+      getAgentsFromDB(),
+      getApplicationsFromDB(filter),
+    ]);
+    const stats = agents.map((agent) => {
+      const agentApps = applications.filter(
+        (app) => app.assignedAdmin === agent.name
+      );
+
+      return {
+        agent: agent.name,
+        total: agentApps.length,
+        studentIntake: agentApps.filter((app) => app.studentIntakeFormSubmitted)
+          .length,
+        uploadedDocs: agentApps.filter((app) => app.documentsUploaded).length,
+        paymentPending: agentApps.filter((app) => !app.full_paid).length,
+        paymentCompleted: agentApps.filter((app) => app.full_paid).length,
+        halfPayment: agentApps.filter(
+          (app) => app.partialScheme && !app.full_paid
+        ).length,
+        fullPayment: agentApps.filter((app) => app.full_paid).length,
+        sentToRTO: agentApps.filter(
+          (app) => app.assessed || app.currentStatus === "sent To RTO"
+        ).length,
+      };
+    });
+
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Get Agent Finance Statistics
+const getFinanceStats = async (req, res) => {
+  try {
+    const { dateFilter, start, end } = req.query;
+    let filter;
+
+    if (dateFilter && dateFilter !== "all") {
+      filter = { type: dateFilter };
+      if (dateFilter === "custom") {
+        filter.start = start;
+        filter.end = end;
+      }
+    }
+
+    const [agents, applications] = await Promise.all([
+      getAgentsFromDB(),
+      getApplicationsFromDB(filter),
+    ]);
+    const stats = agents.map((agent) => {
+      const agentApps = applications.filter(
+        (app) => app.assignedAdmin === agent.name
+      );
+
+      const totalPrice = agentApps.reduce(
+        (sum, app) => sum + Number(app.price || 0),
+        0
+      );
+      const received = agentApps.reduce(
+        (sum, app) => sum + Number(app.amount_paid || 0),
+        0
+      );
+
+      return {
+        agent: agent.name,
+        total: agentApps.length,
+        totalPrice,
+        received,
+        pending: totalPrice - received,
+        paymentPlan: agentApps.reduce(
+          (sum, app) => sum + Number(app.payment2 || 0),
+          0
+        ),
+      };
+    });
+
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Helper functions
+async function getAgentsFromDB() {
+  const snapshot = await db
+    .collection("users")
+    .where("type", "==", "agent")
+    .get();
+  return snapshot.docs.map((doc) => doc.data());
+}
+
+async function getApplicationsFromDB(filter) {
+  let query = db.collection("applications");
+
+  if (filter) {
+    const currentDate = new Date();
+
+    if (filter.type === "week") {
+      const startDate = new Date();
+      startDate.setDate(currentDate.getDate() - 7);
+      query = query.where(
+        "applicationAssignmentDate",
+        ">=",
+        startDate.toISOString()
+      );
+    } else if (filter.type === "month") {
+      const startDate = new Date();
+      startDate.setDate(currentDate.getDate() - 30);
+      query = query.where(
+        "applicationAssignmentDate",
+        ">=",
+        startDate.toISOString()
+      );
+    } else if (filter.type === "custom") {
+      if (filter.start)
+        query = query.where("applicationAssignmentDate", ">=", filter.start);
+      if (filter.end)
+        query = query.where("applicationAssignmentDate", "<=", filter.end);
+    }
+  }
+
+  const snapshot = await query.get();
+  return snapshot.docs.map((doc) => doc.data());
+}
 module.exports = {
   adminLogin,
   registerAdmin,
@@ -2640,4 +2780,6 @@ module.exports = {
   getPaginatedPayments,
   getAssessedApplications,
   getAssessorPendingApplications,
+  getFinanceStats,
+  getLeadsStats,
 };

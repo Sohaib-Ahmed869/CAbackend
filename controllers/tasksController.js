@@ -110,16 +110,90 @@ const updateTaskStatus = async (req, res) => {
   }
 };
 
+// const getAllTasks = async (req, res) => {
+//   try {
+//     const snapshot = await db.collection("tasks").get();
+//     const tasks = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+//     res.status(200).json(tasks);
+//   } catch (error) {
+//     res.status(500).json({ message: error.message });
+//   }
+// };
 const getAllTasks = async (req, res) => {
   try {
-    const snapshot = await db.collection("tasks").get();
+    let query = db.collection("tasks");
+    const { range, startDate, endDate } = req.query;
+
+    let startDateFilter;
+    let endDateFilter = new Date().toISOString(); // Default to current time
+
+    // Handle predefined ranges
+    if (range) {
+      const now = new Date();
+      switch (range) {
+        case "1week": {
+          const start = new Date(now);
+          start.setDate(start.getDate() - 7);
+          startDateFilter = start.toISOString();
+          break;
+        }
+        case "15days": {
+          const start = new Date(now);
+          start.setDate(start.getDate() - 15);
+          startDateFilter = start.toISOString();
+          break;
+        }
+        case "1month": {
+          const start = new Date(now);
+          start.setDate(start.getDate() - 30);
+          startDateFilter = start.toISOString();
+          break;
+        }
+        default: {
+          const start = new Date(now);
+          start.setDate(start.getDate() - 7);
+          startDateFilter = start.toISOString();
+          break;
+        }
+      }
+    }
+    // Handle custom date range
+    else if (startDate && endDate) {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        return res.status(400).json({
+          message: "Invalid date format. Use ISO strings (e.g., YYYY-MM-DD).",
+        });
+      }
+
+      // Adjust to start and end of day in UTC
+      start.setUTCHours(0, 0, 0, 0);
+      end.setUTCHours(23, 59, 59, 999);
+
+      startDateFilter = start.toISOString();
+      endDateFilter = end.toISOString();
+    }
+    // Default to last 1 week
+    else {
+      const start = new Date();
+      start.setDate(start.getDate() - 7);
+      startDateFilter = start.toISOString();
+    }
+
+    // Apply filters to Firestore query
+    query = query
+      .where("createdAt", ">=", startDateFilter)
+      .where("createdAt", "<=", endDateFilter);
+
+    const snapshot = await query.get();
     const tasks = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
     res.status(200).json(tasks);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
-
 module.exports = {
   createTask,
   updateTaskDetails,
