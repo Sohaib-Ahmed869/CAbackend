@@ -13,6 +13,7 @@ const squareClient = new Client({
   accessToken: process.env.SQUARE_ACCESS_TOKEN,
   environment: Environment.Sandbox, // or Environment.Sandbox for testing
 });
+const { TIME_ZONES } = require("../utils/timeZoneConstants");
 // Update Application Status
 const getAgentsKPIStats = async (req, res) => {
   try {
@@ -1344,6 +1345,245 @@ const processScheduledPayment = async (applicationId) => {
 };
 
 // latest process payment with direct debit setup
+// const processPayment = async (req, res) => {
+//   const { applicationId } = req.params;
+//   const { sourceId, price } = req.body;
+
+//   try {
+//     const amountInCents = Math.round(parseFloat(price) * 100);
+
+//     // Process payment with actual sourceId
+//     const payment = await squareClient.paymentsApi.createPayment({
+//       // sourceId: sourceId, //
+//       sourceId: "cnon:card-nonce-ok",
+//       idempotencyKey: `${applicationId}-${Date.now()}`,
+//       amountMoney: {
+//         amount: amountInCents,
+//         currency: "AUD",
+//       },
+//       locationId: process.env.SQUARE_LOCATION_ID,
+//       note: `Application ID: ${applicationId}`,
+//     });
+
+//     if (payment.result.payment.status === "COMPLETED") {
+//       // Update application payment status
+//       const updated = await markApplicationAsPaid(req, res, true);
+//       if (!updated) {
+//         return res.status(500).json({
+//           success: false,
+//           message: "Failed to mark application as paid",
+//         });
+//       }
+//       res.json({ success: true });
+
+//       // Get updated application data
+//       const applicationRef = db.collection("applications").doc(applicationId);
+//       const applicationDoc = await applicationRef.get();
+//       const applicationData = applicationDoc.data();
+//       const userId = applicationData.userId;
+
+//       // Check conditions for direct debit setup
+//       if (
+//         applicationData.partialScheme === true &&
+//         applicationData.autoDebit?.enabled === true &&
+//         applicationData.full_paid === false
+//       ) {
+//         const deadlineMoment = moment.tz(
+//           `${applicationData.payment2Deadline} ${applicationData.payment2DeadlineTime}`,
+//           "YYYY-MM-DD hh:mm A",
+//           "Asia/Karachi"
+//         );
+//         // Create Square customer
+//         const customerResponse = await squareClient.customersApi.createCustomer(
+//           {
+//             givenName: "Recurring Customer",
+//             referenceId: `APP-${applicationId}-USER-${userId}`,
+//           }
+//         );
+
+//         // Create Square card
+//         const cardResponse = await squareClient.cardsApi.createCard({
+//           idempotencyKey: `${applicationId}-${Date.now()}`,
+//           sourceId: sourceId,
+//           card: {
+//             customerId: customerResponse.result.customer.id,
+//           },
+//         });
+
+//         // Store dates as UTC
+//         await applicationRef.update({
+//           "autoDebit.squareCustomerId": customerResponse.result.customer.id,
+//           "autoDebit.squareCardId": cardResponse.result.card.id,
+//           "autoDebit.amountDue": applicationData.payment2,
+//           "autoDebit.dueDate": deadlineMoment.utc().toDate(),
+//           "autoDebit.status": "SCHEDULED",
+//           "autoDebit.paymentTime": applicationData.payment2DeadlineTime,
+//           "autoDebit.selectedPayment": "payment2",
+//           "autoDebit.updatedAt": new Date().toISOString(),
+//         }); // Prepare confirmation email
+//         const userRef = await db.collection("users").doc(userId).get();
+//         const userEmail = userRef.data().email;
+//         const AppId = applicationData.applicationId;
+
+//         const emailBody = `
+//         <!DOCTYPE html>
+//         <html>
+//         <head>
+//             <style>
+//                 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+//                 body {
+//                     font-family: 'Inter', sans-serif;
+//                     margin: 0;
+//                     padding: 0;
+//                     background-color: #f7f9fc;
+//                     color: #333;
+//                 }
+//                 .email-container {
+//                     max-width: 600px;
+//                     margin: 30px auto;
+//                     background: #fff;
+//                     border-radius: 12px;
+//                     box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+//                     overflow: hidden;
+//                 }
+//                 .header {
+//                     background: #fff;
+//                     padding: 24px;
+//                     text-align: center;
+//                 }
+//                 .header img {
+//                     max-width: 200px;
+//                 }
+//                 .content {
+//                     padding: 32px;
+//                     line-height: 1.6;
+//                 }
+//                 .message {
+//                     font-size: 16px;
+//                     color: #555;
+//                     margin-bottom: 20px;
+//                 }
+//                 .details-card {
+//                     background: #f9fafb;
+//                     border-radius: 8px;
+//                     padding: 20px;
+//                     margin: 20px 0;
+//                     border-left: 4px solid #089C34;
+//                 }
+//                 .card-title {
+//                     font-size: 18px;
+//                     font-weight: 600;
+//                     color: #222;
+//                     margin-bottom: 15px;
+//                 }
+//                 .detail-item {
+//                     margin: 10px 0;
+//                     display: flex;
+//                     justify-content: space-between;
+//                 }
+//                 .detail-label {
+//                     color: #666;
+//                     font-weight: 500;
+//                     margin-right: 10px;
+//                 }
+//                 .detail-value {
+//                     font-weight: 500;
+//                     color: #222;
+//                 }
+//                 .footer {
+//                     background: #fff;
+//                     padding: 20px;
+//                     text-align: center;
+//                     font-size: 14px;
+//                     color: #666;
+//                 }
+//                 .footer a {
+//                     color: #666;
+//                     font-weight: 600;
+//                     text-decoration: none;
+//                 }
+//             </style>
+//         </head>
+//         <body>
+//             <div class="email-container">
+//                 <div class="header">
+//                     <img src="https://logosca.s3.ap-southeast-2.amazonaws.com/image-removebg-preview+(18).png" alt="Certified Australia">
+//                 </div>
+//                 <div class="content">
+//                     <h1 style="color: #089C34; margin-bottom: 25px;">Direct Debit Setup Notification</h1>
+
+//                     <p class="message">Dear Applicant,</p>
+//                     <p class="message">Direct debit  for application <strong>#${AppId}</strong> has been successfully set up. Below are your payment details:</p>
+
+//                     <div class="details-card">
+//                         <div class="card-title">Payment Schedule Details</div>
+
+//                         <div class="detail-item">
+//                             <span class="detail-label">Scheduled Amount:</span>
+//                             <span class="detail-value"> $${
+//                               applicationData.payment2
+//                             }</span>
+//                         </div>
+//                         <div class="detail-item">
+//                             <span class="detail-label">Payment Date:</span>
+//                             <span class="detail-value"> ${new Date(
+//                               deadlineDate
+//                             ).toLocaleDateString("en-AU", {
+//                               year: "numeric",
+//                               month: "long",
+//                               day: "numeric",
+//                               timeZone: "UTC",
+//                             })}</span>
+//                         </div>
+//                         <div class="detail-item">
+//                             <span class="detail-label">Payment Method:</span>
+//                             <span class="detail-value"> Automated Direct Debit</span>
+//                         </div>
+//                     </div>
+
+//                     <p class="message" style="margin-top: 25px;">
+//                         <strong>Important:</strong> Your payment will be automatically processed on the scheduled date.
+//                         Please ensure sufficient funds are available in your account.
+//                     </p>
+
+//                     <p class="message">
+//                         Need to update your payment details? Contact our support team for assistance.
+//                     </p>
+//                 </div>
+//                <div class="footer">
+//                     <p>© 2025 Certified Australia. All rights reserved.</p>
+//                     <p>Need help? <a href="mailto:support@certifiedaustralia.com.au" class="footer-link">Contact Support</a></p>
+//                 </div>
+//             </div>
+//         </body>
+//         </html>`;
+//         const subject = `Direct Debit Setup for Application ${AppId}`;
+
+//         await sendEmail(userEmail, emailBody, subject);
+//       }
+
+//       await checkApplicationStatusAndSendEmails(applicationId, "payment_made");
+//     } else {
+//       return res
+//         .status(400)
+//         .json({ success: false, message: "Payment not completed" });
+//     }
+//   } catch (error) {
+//     console.error("Payment Error:", error);
+//     return res.status(400).json({ success: false, message: error.message });
+//   }
+// };
+
+// // fix for direct debit timezone problem  process payment function
+
+// // Define time zone constants
+// const TIME_ZONES = {
+//   DEFAULT: "Asia/Karachi",
+//   SERVER: "UTC",
+//   CLIENT: "Asia/Karachi",
+// };
+
+const moment = require("moment-timezone");
 const processPayment = async (req, res) => {
   const { applicationId } = req.params;
   const { sourceId, price } = req.body;
@@ -1387,11 +1627,13 @@ const processPayment = async (req, res) => {
         applicationData.autoDebit?.enabled === true &&
         applicationData.full_paid === false
       ) {
+        // Parse deadline with explicit timezone
         const deadlineMoment = moment.tz(
           `${applicationData.payment2Deadline} ${applicationData.payment2DeadlineTime}`,
           "YYYY-MM-DD hh:mm A",
-          "Asia/Karachi"
+          TIME_ZONES.DEFAULT
         );
+
         // Create Square customer
         const customerResponse = await squareClient.customersApi.createCustomer(
           {
@@ -1409,17 +1651,19 @@ const processPayment = async (req, res) => {
           },
         });
 
-        // Store dates as UTC
+        // Store dates as UTC consistently
         await applicationRef.update({
           "autoDebit.squareCustomerId": customerResponse.result.customer.id,
           "autoDebit.squareCardId": cardResponse.result.card.id,
           "autoDebit.amountDue": applicationData.payment2,
-          "autoDebit.dueDate": deadlineMoment.utc().toDate(),
+          "autoDebit.dueDate": deadlineMoment.utc().toDate(), // Store as UTC date object
           "autoDebit.status": "SCHEDULED",
           "autoDebit.paymentTime": applicationData.payment2DeadlineTime,
           "autoDebit.selectedPayment": "payment2",
           "autoDebit.updatedAt": new Date().toISOString(),
-        }); // Prepare confirmation email
+        });
+
+        // Prepare confirmation email
         const userRef = await db.collection("users").doc(userId).get();
         const userEmail = userRef.data().email;
         const AppId = applicationData.applicationId;
@@ -1525,14 +1769,9 @@ const processPayment = async (req, res) => {
                         </div>
                         <div class="detail-item">
                             <span class="detail-label">Payment Date:</span>
-                            <span class="detail-value"> ${new Date(
-                              deadlineDate
-                            ).toLocaleDateString("en-AU", {
-                              year: "numeric",
-                              month: "long",
-                              day: "numeric",
-                              timeZone: "UTC",
-                            })}</span>
+                            <span class="detail-value"> ${deadlineMoment.format(
+                              "MMMM D, YYYY"
+                            )}</span>
                         </div>
                         <div class="detail-item">
                             <span class="detail-label">Payment Method:</span>
@@ -1572,49 +1811,8 @@ const processPayment = async (req, res) => {
     return res.status(400).json({ success: false, message: error.message });
   }
 };
-// direct debit config end
-// const processPayment = async (req, res) => {
-//   const { applicationId } = req.params;
-//   const { sourceId, price } = req.body;
 
-//   try {
-//     const amountInCents = Math.round(parseFloat(price) * 100);
-
-//     const payment = await squareClient.paymentsApi.createPayment({
-//       sourceId: "cnon:card-nonce-ok",
-//       idempotencyKey: `${applicationId}-${Date.now()}`,
-//       amountMoney: {
-//         amount: amountInCents,
-//         currency: "AUD",
-//       },
-//       locationId: process.env.SQUARE_LOCATION_ID,
-//       note: `Application ID: ${applicationId}`,
-//     });
-
-//     if (payment.result.payment.status === "COMPLETED") {
-//       // Update application status with isInternal flag
-//       const updated = await markApplicationAsPaid(req, res, true);
-//       if (!updated) {
-//         return res.status(500).json({
-//           success: false,
-//           message: "Failed to mark application as paid",
-//         });
-//       }
-
-//       // Use the comprehensive email service
-//       await checkApplicationStatusAndSendEmails(applicationId, "payment_made");
-
-//       return res.json({ success: true });
-//     } else {
-//       return res
-//         .status(400)
-//         .json({ success: false, message: "Payment not completed" });
-//     }
-//   } catch (error) {
-//     console.error("Payment Error:", error);
-//     return res.status(400).json({ success: false, message: error.message });
-//   }
-// };
+// end
 
 const exportApplicationsToCSV = async (req, res) => {
   try {

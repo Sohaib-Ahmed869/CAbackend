@@ -24,6 +24,8 @@ const { authenticateAdmin } = require("./middleware/authenticate");
 const ipWhitelist = require("./middleware/ipWhiteList");
 const assessorRoutes = require("./routes/assesorRoutes");
 const taskRoutes = require("./routes/taskRoutes");
+const timerRoutes = require("./routes/timerRoutes");
+
 const app = express();
 app.use(express.json());
 app.use(express.json({ limit: "50mb" }));
@@ -31,8 +33,8 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use(
   cors({
     // origin: "https://portal.certifiedaustralia.com.au",
-    // origin: "http://localhost:5173",
-    origin: "https://ca-git-tester-sohaib-ahmeds-projects-a27ab513.vercel.app",
+    origin: "http://localhost:5173",
+    // origin: "https://ca-git-tester-sohaib-ahmeds-projects-a27ab513.vercel.app",
     // origin: "http://catestbucketnew.s3-website-ap-southeast-2.amazonaws.com",
   })
 );
@@ -53,6 +55,8 @@ app.use("/api/industry", industryRoutes);
 app.use("/api/assessor", assessorRoutes);
 // Add this line to your existing routes
 app.use("/api/tasks", taskRoutes);
+app.use("/api/timer", timerRoutes);
+
 // proxy for downloading documents
 
 app.get("/proxy-file", async (req, res) => {

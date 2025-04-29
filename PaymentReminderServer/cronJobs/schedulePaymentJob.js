@@ -1,7 +1,11 @@
 const schedule = require("node-schedule");
 const { db } = require("../config/firebase");
-const moment = require("moment");
+const moment = require("moment-timezone");
 const { processScheduledPayment } = require("./processScheduledPayment");
+
+// Import time zone constants
+const { TIME_ZONES } = require("../utils/timeZoneconstants");
+
 const schedulePaymentJob = async (application, docRef, now, activeJobs) => {
   const {
     id: applicationId,
@@ -16,25 +20,50 @@ const schedulePaymentJob = async (application, docRef, now, activeJobs) => {
     return false;
   }
 
+  // Parse stored due date as UTC (how it's stored in Firestore)
   const dueDate = moment.utc(autoDebit.dueDate.toDate());
 
-  // Avoid duplicate scheduling
-  if (activeJobs.has(`payment-${applicationId}`)) {
+  // Check if the due date is in the past (CRITICAL CHECK)
+  const isPastDue = dueDate.isSameOrBefore(now);
+
+  console.log(`🔍 Checking payment timing for ${appId || applicationId}:`);
+  console.log(`   - Due date: ${dueDate.format("YYYY-MM-DD HH:mm:ss")} UTC`);
+  console.log(`   - Current: ${now.format("YYYY-MM-DD HH:mm:ss")} UTC`);
+  console.log(`   - Is past due: ${isPastDue ? "YES" : "NO"}`);
+  console.log(
+    `   - Local time (${TIME_ZONES.DEFAULT}): ${dueDate
+      .clone()
+      .tz(TIME_ZONES.DEFAULT)
+      .format("YYYY-MM-DD HH:mm:ss")}`
+  );
+
+  // Avoid duplicate scheduling - but allow immediate processing for past due
+  if (activeJobs.has(`payment-${applicationId}`) && !isPastDue) {
     console.log(
       `🔁 Job already scheduled for Application ID: ${applicationId}`
     );
     return false;
   }
 
-  // CASE 1: Immediate payment required
-  if (dueDate.isSameOrBefore(now)) {
+  // Always cancel existing job if we're processing a past due payment
+  if (isPastDue && activeJobs.has(`payment-${applicationId}`)) {
     console.log(
-      `⚡ Immediate payment required for ${applicationId}. Due date: ${dueDate.format(
-        "YYYY-MM-DD HH:mm:ss"
-      )}`
+      `🗑️ Cancelling scheduled job for immediate processing of ${applicationId}`
     );
+    const existingJob = activeJobs.get(`payment-${applicationId}`);
+    existingJob.cancel();
+    activeJobs.delete(`payment-${applicationId}`);
+  }
+
+  // CASE 1: Immediate payment required - process it right away
+  if (isPastDue) {
+    console.log(`⚡ IMMEDIATE PAYMENT REQUIRED for ${applicationId}.`);
+    console.log(`   - Due date: ${dueDate.format("YYYY-MM-DD HH:mm:ss")} UTC`);
+    console.log(`   - Current: ${now.format("YYYY-MM-DD HH:mm:ss")} UTC`);
+    console.log(`   - Time difference: ${now.diff(dueDate, "hours")} hours`);
 
     try {
+      console.log(`🔄 Processing immediate payment for ${applicationId}...`);
       const latestDoc = await docRef.get();
       const latestData = latestDoc.data();
 
@@ -44,9 +73,11 @@ const schedulePaymentJob = async (application, docRef, now, activeJobs) => {
           "scheduledJobs.payment": "skipped",
           "autoDebit.skippedAt": new Date().toISOString(),
         });
-        return;
+        return true; // Job was handled
       }
 
+      // Force immediate payment processing
+      console.log(`🚀 EXECUTING immediate payment for ${applicationId}`);
       await processScheduledPayment(applicationId);
       await docRef.update({
         "scheduledJobs.payment": "completed",
@@ -59,7 +90,6 @@ const schedulePaymentJob = async (application, docRef, now, activeJobs) => {
       console.error(`❌ Failed immediate payment for ${applicationId}:`, error);
       await docRef.update({
         "scheduledJobs.payment": "failed",
-        "scheduledJobs.payment": "failed",
         "autoDebit.status": "FAILED",
         "autoDebit.error": error.message,
         "autoDebit.failedAt": new Date().toISOString(),
@@ -70,13 +100,17 @@ const schedulePaymentJob = async (application, docRef, now, activeJobs) => {
 
   // CASE 2: Schedule for future
   try {
+    console.log(`📅 Scheduling payment for ${appId || applicationId}`);
+    console.log(`   - Due date: ${dueDate.format("YYYY-MM-DD HH:mm:ss")} UTC`);
     console.log(
-      `📅 Scheduling payment for ${appId || applicationId} at ${dueDate.format(
-        "YYYY-MM-DD HH:mm:ss"
-      )}`
+      `   - Local time (${TIME_ZONES.DEFAULT}): ${dueDate
+        .clone()
+        .tz(TIME_ZONES.DEFAULT)
+        .format("YYYY-MM-DD HH:mm:ss")}`
     );
 
-    const job = schedule.scheduleJob(dueDate.utc().toDate(), async () => {
+    // Schedule job using the UTC date
+    const job = schedule.scheduleJob(dueDate.toDate(), async () => {
       console.log(
         `🚀 EXECUTING payment job for application ${appId || applicationId}`
       );
@@ -94,7 +128,7 @@ const schedulePaymentJob = async (application, docRef, now, activeJobs) => {
           );
           await latestDoc.ref.update({
             "scheduledJobs.payment": "skipped",
-            "autoDebit.skippedAt": new Date().utc().toISOString(),
+            "autoDebit.skippedAt": new Date().toISOString(),
           });
           return;
         }
@@ -103,7 +137,7 @@ const schedulePaymentJob = async (application, docRef, now, activeJobs) => {
 
         await latestDoc.ref.update({
           "scheduledJobs.payment": "completed",
-          "autoDebit.processedAt": new Date().utc().toISOString(),
+          "autoDebit.processedAt": new Date().toISOString(),
         });
 
         console.log(`✅ Scheduled payment completed for ${applicationId}`);
@@ -114,8 +148,8 @@ const schedulePaymentJob = async (application, docRef, now, activeJobs) => {
         );
         await docRef.update({
           "scheduledJobs.payment": "failed",
-          // "scheduledJobs.paymentTime": dueDate.toISOString(),
-          "scheduledJobs.paymentTime": dueDate.utc().toISOString(),
+          "scheduledJobs.paymentTime": dueDate.toISOString(), // Already UTC
+          "autoDebit.status": "FAILED",
           "autoDebit.error": error.message,
           "autoDebit.failedAt": new Date().toISOString(),
         });
@@ -129,8 +163,7 @@ const schedulePaymentJob = async (application, docRef, now, activeJobs) => {
     activeJobs.set(`payment-${applicationId}`, job);
     await docRef.update({
       "scheduledJobs.payment": "pending",
-      // "scheduledJobs.paymentTime": dueDate.toISOString(),
-      "scheduledJobs.paymentTime": dueDate.utc().toISOString(),
+      "scheduledJobs.paymentTime": dueDate.toISOString(), // Already UTC
     });
 
     return true;

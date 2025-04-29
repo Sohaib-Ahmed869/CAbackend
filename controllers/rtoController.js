@@ -573,7 +573,12 @@ const getDashboardStats = async (req, res) => {
 
     // Process applications for various statuses
     applications.forEach((application) => {
-      if (application.currentStatus === "Sent to RTO") {
+      if (
+        application.studentIntakeFormSubmitted &&
+        application.full_paid &&
+        application.documentsUploaded &&
+        application.currentStatus !== "Certificate Generated"
+      ) {
         stats.applicationsPending++;
       } else if (application.currentStatus === "Certificate Generated") {
         stats.applicationsCompleted++;

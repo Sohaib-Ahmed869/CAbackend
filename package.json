@@ -23,6 +23,7 @@
     "ipaddr.js": "^2.2.0",
     "jsonwebtoken": "^9.0.2",
     "jszip": "^3.10.1",
+    "moment-timezone": "^0.5.48",
     "multer": "^1.4.5-lts.1",
     "node-cache": "^5.1.2",
     "node-cron": "^3.0.3",
