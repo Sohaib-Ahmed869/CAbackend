@@ -34,7 +34,8 @@ app.use(
   cors({
     // origin: "https://portal.certifiedaustralia.com.au",
     // origin: "http://localhost:5173",
-    origin: "http://catestbucketnew.s3-website-ap-southeast-2.amazonaws.com",
+    // origin: "http://catestbucketnew.s3-website-ap-southeast-2.amazonaws.com",
+    origin: "https://ca-silk.vercel.app",
     // origin: "https://ca-git-tester-sohaib-ahmeds-projects-a27ab513.vercel.app",
     // origin: "http://catestbucketnew.s3-website-ap-southeast-2.amazonaws.com",
   })
