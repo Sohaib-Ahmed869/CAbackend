@@ -217,21 +217,18 @@ const emailFooter = `
  * @param {string} triggerEvent - The event that triggered this check ('sif_completed', 'docs_uploaded', 'payment_made')
  * @returns {Promise<Object>} Status of the email sending operation
  */
-const checkApplicationStatusAndSendEmails = async (
-  applicationId,
-  triggerEvent
-) => {
+const checkApplicationStatusAndSendEmails = async (id, triggerEvent) => {
   try {
     console.log(
-      `Checking application ${applicationId} status for trigger: ${triggerEvent}`
+      `Checking application ${id} status for trigger: ${triggerEvent}`
     );
 
     // Get application data
-    const applicationRef = db.collection("applications").doc(applicationId);
+    const applicationRef = db.collection("applications").doc(id);
     const applicationDoc = await applicationRef.get();
 
     if (!applicationDoc.exists) {
-      console.error(`Application ${applicationId} not found`);
+      console.error(`Application ${id} not found`);
       return { success: false, message: "Application not found" };
     }
 
@@ -240,6 +237,7 @@ const checkApplicationStatusAndSendEmails = async (
       userId,
       studentFormId,
       documentsFormId,
+      applicationId,
       paid,
       partialScheme,
       payment1,
@@ -445,6 +443,7 @@ const handlePaymentEmailNotification = async (
 
       // Notify RTO team
       await notifyRTOTeam(applicationId, userData);
+      await notifyAdminAboutFullPayment(applicationId, status, userData); // <-- Add this
     } else if (status.sifCompleted && !status.docsCompleted) {
       // SIF complete, payment complete, but docs pending
       emailSubject =
@@ -496,6 +495,7 @@ const handlePaymentEmailNotification = async (
         
         <p>Warm regards,<br>The Certified Australia Team</p>
       `;
+      await notifyAdminAboutFullPayment(applicationId, status, userData); // <-- Add this
     } else if (!status.sifCompleted) {
       // Payment complete but SIF pending
       emailSubject = "Payment Received - Complete Your Application";
@@ -538,6 +538,7 @@ const handlePaymentEmailNotification = async (
         
         <p>Warm regards,<br>The Certified Australia Team</p>
       `;
+      await notifyAdminAboutFullPayment(applicationId, status, userData); // <-- Add this
     }
   }
   // Case: Partial payment
@@ -1153,6 +1154,101 @@ const notifyRTOTeam = async (applicationId, userData) => {
   }
 };
 
+// NOTIFY ADMIN ABOUT FULL PAYMENT
+const notifyAdminAboutFullPayment = async (applicationId, status, userData) => {
+  try {
+    const { firstName, lastName } = userData;
+
+    // Define admin emails
+    const adminEmails = [
+      process.env.ADMIN_EMAIL || "saifneonalpha@gmail.com",
+      "admin@certifiedaustralia.com.au",
+      "sohaibahmedsipra@gmail.com",
+      "sohaibsipra868@gmail.com",
+      "sp21075asadullahtalat@gmail.com",
+    ];
+
+    // Get admin user for login URL
+    const adminSnapshot = await db
+      .collection("users")
+      .where("role", "==", "admin")
+      .limit(1)
+      .get();
+
+    let adminLoginUrl = process.env.CLIENT_URL + "/admin";
+
+    if (!adminSnapshot.empty) {
+      const adminDoc = adminSnapshot.docs[0];
+      const adminToken = await auth.createCustomToken(adminDoc.id);
+      adminLoginUrl = `${process.env.CLIENT_URL}/admin?token=${adminToken}`;
+    }
+
+    const emailSubject = "Full Payment Received - Application Update";
+    const emailBody =
+      emailHeader +
+      `
+      <h2>Full Payment Notification</h2>
+      
+      <p>Hello Administrator,</p>
+      
+      <p>A full payment has been received for an application.</p>
+      
+      <div class="important-note">
+        <h3>Application Details:</h3>
+        <ul>
+          <li><strong>Application ID:</strong> ${applicationId}</li>
+          <li><strong>Applicant Name:</strong> ${firstName} ${lastName}</li>
+          <li><strong>Payment Date:</strong> ${new Date().toLocaleDateString()}</li>
+        </ul>
+      </div>
+      
+      <div class="payment-details">
+        <h3>Payment Information:</h3>
+        <ul>
+          <li><strong>Total Amount Paid:</strong> $${status.amountPaid}</li>
+          <li><strong>Total Application Fee:</strong> $${
+            status.price - status.discount
+          }</li>
+          ${
+            status.discount > 0
+              ? `<li><strong>Discount Applied:</strong> $${status.discount}</li>`
+              : ""
+          }
+          <li><strong>Payment Type:</strong> Full Payment</li>
+        </ul>
+      </div>
+      
+      <p>The applicant has completed the full payment for their application.</p>
+      
+      <div class="button-container">
+        <a href="${adminLoginUrl}" class="button">View Application</a>
+      </div>
+      
+      <p>Application current status:</p>
+      <ul>
+        <li>Student Intake Form: ${status.sifCompleted ? "✅" : "❌"}</li>
+        <li>Documents Uploaded: ${status.docsCompleted ? "✅" : "❌"}</li>
+        <li>Payment Completed: ✅</li>
+      </ul>
+      
+      <p>Thank you,<br>Certified Australia System</p>
+    ` +
+      emailFooter;
+
+    // Send emails to all admin emails
+    const uniqueEmails = [...new Set(adminEmails)]; // Remove duplicates
+    const emailPromises = uniqueEmails.map((email) =>
+      sendEmail(email, emailBody, emailSubject)
+    );
+
+    await Promise.all(emailPromises);
+    console.log(
+      `Notified ${uniqueEmails.length} administrators about full payment for application ${applicationId}`
+    );
+  } catch (error) {
+    console.error("Error notifying admin about full payment:", error);
+  }
+};
 /**
  * Notifies the admin team about partial payments
  * @param {string} applicationId - The application ID
@@ -1170,10 +1266,12 @@ const notifyAdminAboutPartialPayment = async (
 
     // Define admin emails
     const adminEmails = [
-      process.env.ADMIN_EMAIL || "admin@certifiedaustralia.com.au",
+      process.env.ADMIN_EMAIL || "saifneonalpha@gmail.com",
+      "admin@certifiedaustralia.com.au",
       "sohaibahmedsipra@gmail.com",
       "sohaibsipra868@gmail.com",
       "sohaibsipra868@gmail.com",
+      "sp21075asadullahtalat@gmail.com",
     ];
 
     // Get admin user for login URL
