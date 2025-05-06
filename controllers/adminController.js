@@ -2751,7 +2751,311 @@ async function getApplicationsFromDB(filter) {
   const snapshot = await query.get();
   return snapshot.docs.map((doc) => doc.data());
 }
+
+// Request RTO Documents
+// Function to request RTO documents
+/**
+ * Sends an email to the customer requesting RTO documents
+ * @param {string} applicationId - The application ID
+ * @param {string} userEmail - The customer's email address
+ * @param {Array} requiredDocuments - List of required documents
+ * @param {string} industry - The industry for the application
+ * @param {string} qualification - The qualification being pursued
+ */
+const sendRtoDocumentRequestEmail = async (
+  appId,
+  userEmail,
+  requiredDocuments,
+  industry,
+  qualification
+) => {
+  const emailBody = `
+  <!DOCTYPE html>
+  <html>
+  <head>
+      <style>
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+          body {
+              font-family: 'Inter', sans-serif;
+              margin: 0;
+              padding: 0;
+              background-color: #f7f9fc;
+              color: #333;
+          }
+          .email-container {
+              max-width: 600px;
+              margin: 30px auto;
+              background: #fff;
+              border-radius: 12px;
+              box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+              overflow: hidden;
+          }
+          .header {
+              background: #fff;
+              padding: 24px;
+              text-align: center;
+          }
+          .header img {
+              max-width: 200px;
+          }
+          .content {
+              padding: 32px;
+              line-height: 1.6;
+          }
+          .message {
+              font-size: 16px;
+              color: #555;
+              margin-bottom: 20px;
+          }
+          .details-card {
+              background: #f9fafb;
+              border-radius: 8px;
+              padding: 20px;
+              margin: 20px 0;
+              border-left: 4px solid #089C34;
+          }
+          .card-title {
+              font-size: 18px;
+              font-weight: 600;
+              color: #222;
+              margin-bottom: 15px;
+          }
+          .detail-item {
+              margin: 10px 0;
+          }
+          .document-list {
+              list-style-type: none;
+              padding-left: 0;
+          }
+          .document-list li {
+              padding: 8px 0;
+              border-bottom: 1px solid #eee;
+          }
+          .document-list li:last-child {
+              border-bottom: none;
+          }
+          .detail-label {
+              color: #666;
+              font-weight: 500;
+              margin-right: 10px;
+          }
+          .detail-value {
+              font-weight: 500;
+              color: #222;
+          }
+          .footer {
+              background: #fff;
+              padding: 20px;
+              text-align: center;
+              font-size: 14px;
+              color: #666;
+          }
+          .footer a {
+              color: #666;
+              font-weight: 600;
+              text-decoration: none;
+          }
+      </style>
+  </head>
+  <body>
+      <div class="email-container">
+          <div class="header">
+              <img src="https://logosca.s3.ap-southeast-2.amazonaws.com/image-removebg-preview+(18).png" alt="Certified Australia">
+          </div>
+          <div class="content">
+              <h1 style="color: #089C34; margin-bottom: 25px;">Required Documents Request</h1>
+              
+              <p class="message">Dear Applicant,</p>
+              <p class="message">We need the following documents to proceed with your application <strong>#${appId}</strong> for the ${qualification} qualification in the ${industry} industry:</p>
+  
+              <div class="details-card">
+                  <div class="card-title">Required Documents</div>
+                  <ul class="document-list">
+                      ${requiredDocuments
+                        .map((doc) => `<li>${doc}</li>`)
+                        .join("")}
+                  </ul>
+              </div>
+  
+              <p class="message" style="margin-top: 25px;">
+                  <strong>Important:</strong> Please submit these documents as soon as possible to avoid delays in processing your application.
+              </p>
+              
+              <p class="message">
+                  You are required to fill the forms added in your application process in certified australia portal to proceed with your application.
+              </p>
+          </div>
+         <div class="footer">
+              <p>© 2025 Certified Australia. All rights reserved.</p>
+              <p>Need help? <a href="mailto:support@certifiedaustralia.com.au" class="footer-link">Contact Support</a></p>
+          </div>
+      </div>
+  </body>
+  </html>`;
+
+  const subject = `Required Documents for Application ${appId}`;
+
+  await sendEmail(userEmail, emailBody, subject);
+};
+
+// Updated requestRtoDocuments function that calls the email function
+const requestRtoDocuments = async (req, res) => {
+  const { applicationId, industry, qualification, email, appId } = req.body;
+
+  try {
+    // Step 1: Validate request data
+    if (!applicationId || !industry || !qualification) {
+      return res.status(400).json({
+        message:
+          "Missing required fields: applicationId, industry, and qualification are required",
+      });
+    }
+
+    // Step 2: Get the application document
+    const applicationRef = db.collection("applications").doc(applicationId);
+    const applicationDoc = await applicationRef.get();
+
+    if (!applicationDoc.exists) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+
+    // Step 3: Determine required documents based on industry and qualification
+    const requiredDocuments = getRequiredDocuments(industry, qualification);
+
+    if (!requiredDocuments || requiredDocuments.length === 0) {
+      return res.status(404).json({
+        message:
+          "No document requirements found for specified industry and qualification",
+      });
+    }
+
+    // Step 4: Update the application document
+    await applicationRef.update({
+      requestedRtoDocuments: requiredDocuments,
+      rtoDocumentsRequested: true,
+      // Add to status array
+    });
+
+    // Step 5: Send email to the customer
+    const customerEmail = email || applicationDoc.data().email; // Use provided email or fetch from application
+    if (customerEmail) {
+      await sendRtoDocumentRequestEmail(
+        appId,
+        customerEmail,
+        requiredDocuments,
+        industry,
+        qualification
+      );
+    }
+
+    // Step 6: Return success response
+    res.status(200).json({
+      message: "RTO documents requested successfully",
+      requestedDocuments: requiredDocuments,
+      emailSent: !!customerEmail,
+    });
+  } catch (error) {
+    console.error("Error requesting RTO documents:", error);
+    res.status(500).json({
+      message: "Error requesting RTO documents",
+      error: error.message,
+    });
+  }
+};
+// const requestRtoDocuments = async (req, res) => {
+
+//   const { applicationId, industry, qualification, email } = req.body;
+
+//   try {
+//     // Step 1: Validate request data
+//     if (!applicationId || !industry || !qualification) {
+//       return res.status(400).json({
+//         message:
+//           "Missing required fields: applicationId, industry, and qualification are required",
+//       });
+//     }
+
+//     // Step 2: Get the application document
+//     const applicationRef = db.collection("applications").doc(applicationId);
+//     const applicationDoc = await applicationRef.get();
+
+//     if (!applicationDoc.exists) {
+//       return res.status(404).json({ message: "Application not found" });
+//     }
+
+//     // Step 3: Determine required documents based on industry and qualification
+//     const requiredDocuments = getRequiredDocuments(industry, qualification);
+
+//     if (!requiredDocuments || requiredDocuments.length === 0) {
+//       return res.status(404).json({
+//         message:
+//           "No document requirements found for specified industry and qualification",
+//       });
+//     }
+
+//     // Step 4: Update the application document
+//     await applicationRef.update({
+//       requestedRtoDocuments: requiredDocuments,
+//       rtoDocumentsRequested: true,
+//       // Add to status array
+//     });
+
+//     // Step 5: Return success response
+//     res.status(200).json({
+//       message: "RTO documents requested successfully",
+//       requestedDocuments: requiredDocuments,
+//     });
+//   } catch (error) {
+//     console.error("Error requesting RTO documents:", error);
+//     res.status(500).json({
+//       message: "Error requesting RTO documents",
+//       error: error.message,
+//     });
+//   }
+// };
+
+// Helper function to determine required documents based on industry and qualification
+function getRequiredDocuments(industry, qualification) {
+  // Case-insensitive comparison for better matching
+  const normalizedIndustry = industry.toLowerCase().trim();
+  const normalizedQualification = qualification.toLowerCase().trim();
+
+  // Document requirements mapping
+  const documentRequirements = {
+    // Healthcare industry requirements
+    "health care": {
+      diploma: [
+        "RPL Intake Form - Healthcare",
+        "Professional Reference Form",
+        "Skills Assessment Checklist",
+      ],
+      // Add other healthcare qualifications as needed
+    },
+
+    // Building and Construction industry requirements
+    "building and construction": {
+      "cpc31420 certificate iii in construction waterproofing": [
+        "RPL Intake CPC31420 Certificate III in Construction Waterproofing",
+        "RPL Enrolment Kit",
+      ],
+      // Add other construction qualifications as needed
+    },
+
+    // Add other industries as needed
+  };
+
+  // Find matching documents
+  try {
+    return (
+      documentRequirements[normalizedIndustry][normalizedQualification] || []
+    );
+  } catch (e) {
+    return [];
+  }
+}
+
 module.exports = {
+  requestRtoDocuments,
   adminLogin,
   registerAdmin,
   getCustomers,

@@ -1,5 +1,6 @@
 // controllers/taskController.js
 const { db } = require("../firebase");
+const NodeCache = require("node-cache");
 
 const createTask = async (req, res) => {
   try {
@@ -63,6 +64,7 @@ const updateTaskDetails = async (req, res) => {
           "dueDate",
           "checklist",
           "comments",
+          "applicationId",
         ];
         updates = Object.keys(updates)
           .filter((key) => allowedFields.includes(key))
@@ -119,6 +121,7 @@ const updateTaskStatus = async (req, res) => {
 //     res.status(500).json({ message: error.message });
 //   }
 // };
+//
 const getAllTasks = async (req, res) => {
   try {
     let query = db.collection("tasks");
@@ -194,9 +197,172 @@ const getAllTasks = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+const CACHE_TTL = 10 * 60 * 1000; // 10 minutes in milliseconds
+let appIdCache = {
+  data: null,
+  timestamp: null,
+};
+const getColorLabel = (colorValue) => {
+  const colorMap = {
+    red: "Hot Lead",
+    orange: "Warm Lead",
+    gray: "Cold Lead",
+    yellow: "Proceeded With Payment",
+    lightblue: "Impacted Student",
+    pink: "Agent",
+    green: "Completed",
+    white: "Default",
+  };
+  return colorMap[colorValue] || "N/A";
+};
+
+const getAppIDs = async (req, res) => {
+  try {
+    // Check cache validity
+    // if (appIdCache.data && Date.now() - appIdCache.timestamp < CACHE_TTL) {
+    //   console.log("Returning cached application data");
+    //   return res.status(200).json(appIdCache.data);
+    // }
+
+    // Fetch fresh data from Firestore
+    const applicationsRef = db.collection("applications");
+    const snapshot = await applicationsRef.get();
+
+    // Process applications in parallel
+    const applicationPromises = [];
+    snapshot.forEach((doc) => {
+      const appData = doc.data();
+      const processingPromise = (async () => {
+        try {
+          // Extract application data
+          const applicationId = appData.applicationId;
+          const id = appData.id;
+          const userId = appData.userId;
+          const currentStatus = appData.currentStatus; // Original status field
+          const color = appData.color || "white"; // Default to white if color is not set
+          const leadStatus = getColorLabel(color); // Get lead status based on color
+          const createdAt = doc.createTime.toDate().toISOString();
+
+          if (!applicationId || !userId) return null;
+
+          // Fetch user document with field validation
+          const userDoc = await db.collection("users").doc(userId).get();
+          const applicantName = userDoc.exists
+            ? `${userDoc.data().firstName || ""} ${
+                userDoc.data().lastName || ""
+              }`.trim()
+            : "Unknown";
+
+          return {
+            id,
+            applicationId,
+            applicantName,
+            createdAt,
+            leadStatus, // Add new lead status based on color
+            color, // Include color for reference
+            userId, // Include if needed
+          };
+        } catch (error) {
+          console.error(`Error processing application ${doc.id}:`, error);
+          return null;
+        }
+      })();
+
+      applicationPromises.push(processingPromise);
+    });
+
+    // Wait for all promises and filter out nulls
+    const applicationData = (await Promise.all(applicationPromises)).filter(
+      Boolean
+    );
+
+    // Update cache with new data structure
+    appIdCache = {
+      data: applicationData,
+      timestamp: Date.now(),
+    };
+
+    // Set cache headers
+    res.set("Cache-Control", "public, max-age=600");
+    res.status(200).json(applicationData);
+  } catch (error) {
+    console.error("Error fetching applications:", error);
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};
+const getApplicationDetails = async (req, res) => {
+  const { applicationId } = req.params;
+
+  try {
+    // Step 1: Fetch the main application document
+    const applicationRef = db.collection("applications").doc(applicationId);
+    const doc = await applicationRef.get();
+
+    if (!doc.exists) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+
+    const applicationData = doc.data();
+
+    // Step 2: Extract related form IDs from the application
+    const formIds = {
+      initialFormId: applicationData.initialFormId,
+      studentFormId: applicationData.studentFormId,
+      documentsFormId: applicationData.documentsFormId,
+    };
+
+    // Step 3: Fetch all related forms and user in parallel
+    const [
+      initialFormSnapshot,
+      studentFormSnapshot,
+      documentsFormSnapshot,
+      userSnapshot,
+    ] = await Promise.all([
+      formIds.initialFormId
+        ? db
+            .collection("initialScreeningForms")
+            .doc(formIds.initialFormId)
+            .get()
+        : Promise.resolve(null),
+      formIds.studentFormId
+        ? db.collection("studentIntakeForms").doc(formIds.studentFormId).get()
+        : Promise.resolve(null),
+      formIds.documentsFormId
+        ? db.collection("documents").doc(formIds.documentsFormId).get()
+        : Promise.resolve(null),
+      // Fetch user data
+      db.collection("users").doc(applicationData.userId).get(),
+    ]);
+
+    // Step 4: Build the response with renamed form keys and user data
+    const response = {
+      ...applicationData,
+      isf: initialFormSnapshot?.exists ? initialFormSnapshot.data() : null,
+      sif: studentFormSnapshot?.exists ? studentFormSnapshot.data() : null,
+      document: documentsFormSnapshot?.exists
+        ? documentsFormSnapshot.data()
+        : null,
+      user: userSnapshot.exists ? userSnapshot.data() : null,
+    };
+
+    // Step 5: Return the enriched application data (matching getApplications structure)
+    res.status(200).json(response);
+  } catch (error) {
+    res.status(500).json({
+      message: "Error fetching application",
+      error: error.message,
+    });
+  }
+};
 module.exports = {
   createTask,
+  getAppIDs,
   updateTaskDetails,
   updateTaskStatus,
   getAllTasks,
+  getApplicationDetails,
 };

@@ -25,7 +25,7 @@ const ipWhitelist = require("./middleware/ipWhiteList");
 const assessorRoutes = require("./routes/assesorRoutes");
 const taskRoutes = require("./routes/taskRoutes");
 const timerRoutes = require("./routes/timerRoutes");
-
+const FormRoutes = require("./routes/rtoFormRoutes");
 const app = express();
 app.use(express.json());
 app.use(express.json({ limit: "50mb" }));
@@ -33,9 +33,9 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use(
   cors({
     // origin: "https://portal.certifiedaustralia.com.au",
-    // origin: "http://localhost:5173",
+    origin: "http://localhost:5173",
     // origin: "http://catestbucketnew.s3-website-ap-southeast-2.amazonaws.com",
-    origin: "https://ca-silk.vercel.app",
+    // origin: "https://ca-silk.vercel.app",
     // origin: "https://ca-git-tester-sohaib-ahmeds-projects-a27ab513.vercel.app",
     // origin: "http://catestbucketnew.s3-website-ap-southeast-2.amazonaws.com",
   })
@@ -48,6 +48,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/applications", applicationRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/form", FormRoutes);
 // app.use("/api/admin", ipWhitelist, adminRoutes);
 // app.use("/api/admin", authenticateAdmin, ipWhitelist, adminRoutes);
 app.use("/api/rto", rtoRoutes);

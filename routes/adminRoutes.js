@@ -30,6 +30,7 @@ const {
   getPaginatedPayments,
   getLeadsStats,
   getFinanceStats,
+  requestRtoDocuments,
 } = require("../controllers/adminController");
 
 const router = express.Router();
@@ -65,4 +66,7 @@ router.put("/auto-debit/:applicationId", updateAutoDebit);
 // reporting
 router.get("/finance-stats", getFinanceStats);
 router.get("/leads-stats", getLeadsStats);
+//  Request Rto Documents
+router.patch("/request-rto-documents", requestRtoDocuments);
+
 module.exports = router;
