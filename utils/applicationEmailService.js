@@ -445,6 +445,8 @@ const handlePaymentEmailNotification = async (
 
       // Notify RTO team
       await notifyRTOTeam(applicationId, userData);
+
+      await notifyAdminAboutFullPayment(applicationId, status, userData);
     } else if (status.sifCompleted && !status.docsCompleted) {
       // SIF complete, payment complete, but docs pending
       emailSubject =
@@ -1152,6 +1154,100 @@ const notifyRTOTeam = async (applicationId, userData) => {
     );
   } catch (error) {
     console.error("Error notifying RTO team:", error);
+  }
+};
+
+/**
+ * Notifies the admin team about full payments
+ * @param {string} applicationId - The application ID
+ * @param {Object} status - The application status
+ * @param {Object} userData - The user data
+ * @returns {Promise<void>}
+ */
+const notifyAdminAboutFullPayment = async (applicationId, status, userData) => {
+  try {
+    const { firstName, lastName } = userData;
+
+    // Define admin emails
+    const adminEmails = [
+      "ceo@certifiedaustralia.com.au",
+      "applications@certifiedaustralia.com.au",
+      "sohaibsipra868@gmail.com",
+    ];
+
+    // Get admin user for login URL
+    const adminSnapshot = await db
+      .collection("users")
+      .where("role", "==", "admin")
+      .limit(1)
+      .get();
+
+    let adminLoginUrl = process.env.CLIENT_URL + "/admin";
+
+    if (!adminSnapshot.empty) {
+      const adminDoc = adminSnapshot.docs[0];
+      const adminToken = await auth.createCustomToken(adminDoc.id);
+      adminLoginUrl = `${process.env.CLIENT_URL}/admin?token=${adminToken}`;
+    }
+
+    const emailSubject = "Full Payment Received - Application Complete";
+    const emailBody =
+      emailHeader +
+      `
+      <h2>Full Payment Notification</h2>
+      
+      <p>Hello Administrator,</p>
+      
+      <p>A full payment has been received for an application.</p>
+      
+      <div class="important-note">
+        <h3>Application Details:</h3>
+        <ul>
+          <li><strong>Application ID:</strong> ${applicationId}</li>
+          <li><strong>Applicant Name:</strong> ${firstName} ${lastName}</li>
+          <li><strong>Payment Date:</strong> ${new Date().toLocaleDateString()}</li>
+        </ul>
+      </div>
+      
+      <div class="payment-details">
+        <h3>Payment Information:</h3>
+        <ul>
+          <li><strong>Amount Paid:</strong> $${status.amountPaid}</li>
+          <li><strong>Total Application Fee:</strong> $${
+            status.price - status.discount
+          }</li>
+          ${
+            status.discount > 0
+              ? `<li><strong>Discount Applied:</strong> $${status.discount}</li>`
+              : ""
+          }
+        </ul>
+      </div>
+      
+      <p>The application is now complete and has been sent for assessment.</p>
+      
+      <div class="button-container">
+        <a href="${adminLoginUrl}" class="button">View Application</a>
+      </div>
+      
+      <p>Please proceed with the assessment process.</p>
+      
+      <p>Thank you,<br>Certified Australia System</p>
+    ` +
+      emailFooter;
+
+    // Send emails to all admin emails
+    const uniqueEmails = [...new Set(adminEmails)]; // Remove duplicates
+    const emailPromises = uniqueEmails.map((email) =>
+      sendEmail(email, emailBody, emailSubject)
+    );
+
+    await Promise.all(emailPromises);
+    console.log(
+      `Notified ${uniqueEmails.length} administrators about full payment for application ${applicationId}`
+    );
+  } catch (error) {
+    console.error("Error notifying admin about full payment:", error);
   }
 };
 
