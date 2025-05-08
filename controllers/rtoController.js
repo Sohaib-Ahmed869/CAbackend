@@ -9,6 +9,7 @@ const { google } = require("googleapis");
 const axios = require("axios");
 const stream = require("stream");
 const { createDriveFolder, uploadFileToDrive } = require("../utils/driveSetup");
+const { GenerateRtoDocuments } = require("./rtoFormsController");
 
 const getAllRtos = async (req, res) => {
   try {
@@ -291,9 +292,349 @@ const getAllRtos = async (req, res) => {
 //   }
 // };
 
+// const sendApplicationToRto = async (req, res) => {
+//   try {
+//     const { application, rto, enrollmentData, rplIntakeData } = req.body;
+
+//     if (!application || !rto) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Missing application or RTO details.",
+//       });
+//     }
+//     const applicationId = application.id;
+//     const userId = application.userId;
+//     if (application.enrolmentFormSubmitted && application.rplIntakeSubmitted) {
+//       try {
+//         // Get the db and bucket from your Firebase setup
+//         const { db, bucket } = req; // Assuming these are passed in the request or available in your scope
+
+//         // Generate the documents and get their URLs
+//         const documentsResponse = await GenerateRtoDocuments(
+//           applicationId,
+//           userId,
+//           enrollmentData,
+//           rplIntakeData
+//         );
+
+//         // Add the generated documents to the documentLinks array
+//         if (documentsResponse.success) {
+//           // Add enrollment form
+//           documentLinks.push({
+//             name: documentsResponse.documents.enrollmentForm.fileName,
+//             fileUrl: documentsResponse.documents.enrollmentForm.fileUrl,
+//             type: "Enrollment Form",
+//           });
+
+//           // Add RPL intake form
+//           documentLinks.push({
+//             name: documentsResponse.documents.rplIntakeForm.fileName,
+//             fileUrl: documentsResponse.documents.rplIntakeForm.fileUrl,
+//             type: "RPL Intake Form",
+//           });
+//         }
+//       } catch (docError) {
+//         console.error("Error generating documents:", docError);
+//         // Continue with the process, but log the error
+//       }
+//     }
+//     // Extract user email and documents
+//     const rtoEmail = rto || "asadawan16900@gmail.com"; // Replace with actual RTO email
+//     const userEmail = application.user?.email || "No Email Provided";
+//     // Create a folder in Google Drive with applicationId as the name
+//     const folderName = `Application_${application.applicationId}`;
+//     let folderInfo;
+//     let documentLinks = [];
+
+//     try {
+//       folderInfo = await createDriveFolder(folderName);
+//       console.log(
+//         `✅ Created Drive folder: ${folderName} with ID: ${folderInfo.folderId}`
+//       );
+
+//       // Upload documents to the folder
+//       if (application.document) {
+//         for (const [key, fileData] of Object.entries(application.document)) {
+//           if (fileData?.fileUrl) {
+//             const filePathParts = fileData.fileName.split("/");
+//             const folderName = filePathParts[filePathParts.length - 2]; // Second last part (Resume23, etc.)
+//             const fileFullName = filePathParts[filePathParts.length - 1]; // Full filename
+//             const fileExtension = fileFullName.substring(
+//               fileFullName.lastIndexOf(".")
+//             ); // Extract extension
+
+//             const displayName = `${folderName}${fileExtension}`; // Example: Resume23.pdf
+
+//             // Upload file to Google Drive
+//             const fileInfo = await uploadFileToDrive(
+//               fileData.fileUrl,
+//               displayName,
+//               folderInfo.folderId
+//             );
+
+//             console.log(`✅ Uploaded file to Drive: ${displayName}`);
+
+//             // Store file information for email
+//             documentLinks.push({
+//               name: displayName,
+//               viewLink: fileInfo.viewLink,
+//               downloadLink: fileInfo.downloadLink,
+//               type: key,
+//             });
+//           }
+//         }
+//       }
+//     } catch (driveError) {
+//       console.error("Error with Google Drive operations:", driveError);
+//       // Continue with the email but without Drive links if there was an error
+//     }
+
+//     // Prepare Email Body with Styled HTML
+//     const emailBody = `
+//       <!DOCTYPE html>
+//       <html>
+//       <head>
+//           <meta charset="UTF-8">
+//           <meta name="viewport" content="width=device-width, initial-scale=1.0">
+//           <title>New Application Submission</title>
+//           <style>
+//               @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+//               body {
+//                   font-family: 'Inter', sans-serif;
+//                   margin: 0;
+//                   padding: 0;
+//                   background-color: #f7f9fc;
+//                   color: #333;
+//               }
+//               .email-container {
+//                   max-width: 600px;
+//                   margin: 30px auto;
+//                   background: #fff;
+//                   border-radius: 12px;
+//                   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+//                   overflow: hidden;
+//               }
+//               .header {
+//                   background: #089C34;
+//                   color: #fff;
+//                   padding: 24px;
+//                   text-align: center;
+//                   font-size: 20px;
+//                   font-weight: 600;
+//               }
+//               .header img {
+//                   max-width: 200px;
+//               }
+//               .content {
+//                   padding: 32px;
+//                   line-height: 1.6;
+//               }
+//               .section {
+//                   background: #f9fafb;
+//                   border-radius: 8px;
+//                   padding: 20px;
+//                   margin: 20px 0;
+//                   border-left: 4px solid #089C34;
+//                   box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.05);
+//               }
+//               .section h3 {
+//                   font-size: 18px;
+//                   font-weight: 600;
+//                   color: #222;
+//                   margin-bottom: 10px;
+//               }
+//               .footer {
+//                   background: #f1f3f5;
+//                   padding: 20px;
+//                   text-align: center;
+//                   font-size: 14px;
+//                   color: #666;
+//               }
+//               .footer a {
+//                   color: #089C34;
+//                   font-weight: 600;
+//                   text-decoration: none;
+//               }
+//           </style>
+//       </head>
+//       <body>
+//           <div class="email-container">
+//               <div class="header">
+//                   <img src="https://logosca.s3.ap-southeast-2.amazonaws.com/image-removebg-preview+(18).png" alt="Certified Australia">
+//               </div>
+//               <div class="content">
+//                   <h2>Application Details of ${
+//                     application.applicationId
+//                   } for RTO Assessment  </h2>
+//                   <p>Dear RTO,</p>
+//                   <p> Below are the details of the application:</p>
+
+//                   ${
+//                     application.sif
+//                       ? `
+//     <div style="border: 1px solid #ddd;                   border-left: 4px solid #089C34;
+// ; padding: 15px; margin: 15px 0; border-radius: 8px;   display: grid; grid-template-columns: 1fr 1fr;               box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.05);
+// ; background-color: #f9f9f9;">
+//       <h3 style=" font-size: 18px;
+//                   font-weight: 600;
+//                   color: #222;
+//                   margin-bottom: 10px;">Student Intake Form (SIF)</h3>
+//       <p><strong>First Name:</strong> ${application.sif.firstName || "N/A"}</p>
+//       <p><strong>Middle Name:</strong> ${
+//         application.sif.middleName || "N/A"
+//       }</p>
+//       <p><strong>Last Name:</strong> ${application.sif.lastName || "N/A"}</p>
+//       <p><strong>USI:</strong> ${application.sif.USI || "N/A"}</p>
+//       <p><strong>Gender:</strong> ${application.sif.gender || "N/A"}</p>
+//       <p><strong>Date of Birth:</strong> ${application.sif.dob || "N/A"}</p>
+//       <p><strong>Email:</strong> ${application.sif.email || "N/A"}</p>
+//       <p><strong>Phone:</strong> ${application.sif.contactNumber || "N/A"}</p>
+//       <p><strong>Home Address:</strong> ${
+//         application.sif.homeAddress || "N/A"
+//       }</p>
+//       <p><strong>Suburb:</strong> ${application.sif.suburb || "N/A"}</p>
+//       <p><strong>State:</strong> ${application.sif.state || "N/A"}</p>
+//       <p><strong>Postcode:</strong> ${application.sif.postcode || "N/A"}</p>
+//       <p><strong>Country of Birth:</strong> ${
+//         application.sif.countryOfBirth || "N/A"
+//       }</p>
+//       <p><strong>Aboriginal or Torres Strait Islander:</strong> ${
+//         application.sif.aboriginalOrTorresStraitIslander || "N/A"
+//       }</p>
+//       <p><strong>Australian Citizen:</strong> ${
+//         application.sif.australianCitizen || "N/A"
+//       }</p>
+//       <p><strong>Employment Status:</strong> ${
+//         application.sif.employmentStatus || "N/A"
+//       }</p>
+//       <p><strong>English Level:</strong> ${
+//         application.sif.englishLevel || "N/A"
+//       }</p>
+//       <p><strong>Previous Qualifications:</strong> ${
+//         application.sif.previousQualifications || "N/A"
+//       }</p>
+//       <p><strong>Year Completed:</strong> ${
+//         application.sif.YearCompleted || "N/A"
+//       }</p>
+//       <p><strong>Disability:</strong> ${application.sif.disability || "N/A"}</p>
+//       <p><strong>Credits Transfer:</strong> ${
+//         application.sif.creditsTransfer || "N/A"
+//       }</p>
+//       <p><strong>Name of Qualification:</strong> ${
+//         application.sif.nameOfQualification || "N/A"
+//       }</p>
+//       <p><strong>Business Name:</strong> ${
+//         application.sif.businessName || "N/A"
+//       }</p>
+//       <p><strong>Employer's Legal Name:</strong> ${
+//         application.sif.employersLegalName || "N/A"
+//       }</p>
+//       <p><strong>Employer's Contact Number:</strong> ${
+//         application.sif.employersContactNumber || "N/A"
+//       }</p>
+//       <p><strong>Employer's Address:</strong> ${
+//         application.sif.employersAddress || "N/A"
+//       }</p>
+//       <p><strong>Position:</strong> ${application.sif.position || "N/A"}</p>
+//       <p><strong>Date:</strong> ${application.sif.date || "N/A"}</p>
+//       <p><strong>Agreement:</strong> ${application.sif.agree ? "Yes" : "No"}</p>
+//     </div>
+//   `
+//                       : ""
+//                   }
+
+//                   ${
+//                     application.isf
+//                       ? `
+//                   <div class="section">
+//                       <h3>Initial Screening Form Details</h3>
+//                       <p><strong>Formal Education:</strong> ${
+//                         application.isf.formal_education || "N/A"
+//                       }</p>
+//                       <p><strong>Qualification:</strong> ${
+//                         application.isf.qualification || "N/A"
+//                       }</p>
+//                       <p><strong>State:</strong> ${application.isf.state}</p>
+//                       <p><strong>Industry:</strong> ${
+//                         application.isf.industry
+//                       }</p>
+//                       <p><strong>Experience:</strong> ${
+//                         application.isf.yearsOfExperience
+//                       }</p>
+//                       <p><strong>Experience Location:</strong> ${
+//                         application.isf.locationOfExperience
+//                       }</p>
+//                   </div>
+//                   `
+//                       : ""
+//                   }
+
+//                   <div class="section">
+//                       <h3>User Information</h3>
+//                       <p><strong>Name:</strong> ${application.user.firstName} ${
+//       application.user.lastName
+//     }</p>
+//                       <p><strong>Email:</strong> ${application.user.email}</p>
+//                       <p><strong>Phone:</strong> ${application.user.phone}</p>
+//                       <p><strong>Country:</strong> ${
+//                         application.user.country
+//                       }</p>
+//                   </div>
+//                   ${
+//                     documentLinks.length > 0
+//                       ? `
+//                         <div class="section">
+//                           <h3>Uploaded Documents</h3>
+//                           <ul style="list-style-type: none; padding: 0;">
+//                             ${documentLinks
+//                               .map(
+//                                 (doc) => `
+//                               <li style="margin-bottom: 10px;">
+//                                 <strong>${doc.name}</strong> (${doc.type})<br/>
+//                                 <a href="${doc.viewLink}" target="_blank" style="color: #089C34;">View Document</a> |
+//                                 <a href="${doc.downloadLink}" target="_blank" style="color: #089C34;">Download</a>
+//                               </li>`
+//                               )
+//                               .join("")}
+//                           </ul>
+//                         </div>`
+//                       : "<p>No documents were uploaded.</p>"
+//                   }
+//                   <p>Best regards,</p>
+//                   <p>Your Application System</p>
+//               </div>
+//               <div class="footer">
+//                   <p>© 2025 Certified Australia. All rights reserved.</p>
+//                   <p>Need help? <a href="mailto:support@certifiedaustralia.com.au">Contact Support</a></p>
+//               </div>
+//           </div>
+//       </body>
+//       </html>
+//     `;
+
+//     // Send Email without file attachments (since we're using Drive links now)
+//     await MailApplicationToRto(
+//       rtoEmail,
+//       emailBody,
+//       `Details of Application ${application.applicationId}`,
+//       [] // Empty array for attachments since we're using Drive links now
+//     );
+
+//     return res.status(200).json({
+//       success: true,
+//       message: "Application sent successfully to RTO!",
+//       driveFolder: folderInfo?.folderLink || null,
+//     });
+//   } catch (error) {
+//     console.error("Error sending application:", error);
+//     return res
+//       .status(500)
+//       .json({ success: false, message: "Failed to send application", error });
+//   }
+// };
 const sendApplicationToRto = async (req, res) => {
   try {
-    const { application, rto } = req.body;
+    const { application, rto, enrollmentData, rplIntakeData } = req.body;
 
     if (!application || !rto) {
       return res.status(400).json({
@@ -301,22 +642,64 @@ const sendApplicationToRto = async (req, res) => {
         message: "Missing application or RTO details.",
       });
     }
+    const applicationId = application.id;
+    const userId = application.userId;
 
     // Extract user email and documents
     const rtoEmail = rto || "asadawan16900@gmail.com"; // Replace with actual RTO email
     const userEmail = application.user?.email || "No Email Provided";
+
     // Create a folder in Google Drive with applicationId as the name
     const folderName = `Application_${application.applicationId}`;
     let folderInfo;
     let documentLinks = [];
 
+    // Array for storing generated document URLs
+    let generatedDocuments = [];
+
+    // Generate the documents if both forms are submitted
+    if (application.enrolmentFormSubmitted && application.rplIntakeSubmitted) {
+      try {
+        // Get the db and bucket from your Firebase setup
+
+        // Generate the documents and get their URLs
+        const documentsResponse = await GenerateRtoDocuments(
+          applicationId,
+          userId,
+          enrollmentData,
+          rplIntakeData
+        );
+
+        // Store the generated documents in a separate array
+        if (documentsResponse.success) {
+          // Add enrollment form
+          generatedDocuments.push({
+            name: documentsResponse.documents.enrollmentForm.fileName,
+            fileUrl: documentsResponse.documents.enrollmentForm.fileUrl,
+            type: "Enrollment Form",
+          });
+
+          // Add RPL intake form
+          generatedDocuments.push({
+            name: documentsResponse.documents.rplIntakeForm.fileName,
+            fileUrl: documentsResponse.documents.rplIntakeForm.fileUrl,
+            type: "RPL Intake Form",
+          });
+        }
+      } catch (docError) {
+        console.error("Error generating documents:", docError);
+        // Continue with the process, but log the error
+      }
+    }
+
     try {
+      // Create Drive folder
       folderInfo = await createDriveFolder(folderName);
       console.log(
         `✅ Created Drive folder: ${folderName} with ID: ${folderInfo.folderId}`
       );
 
-      // Upload documents to the folder
+      // Upload application documents to the folder
       if (application.document) {
         for (const [key, fileData] of Object.entries(application.document)) {
           if (fileData?.fileUrl) {
@@ -346,6 +729,32 @@ const sendApplicationToRto = async (req, res) => {
               type: key,
             });
           }
+        }
+      }
+
+      // Upload generated documents to the same Drive folder
+      if (generatedDocuments.length > 0) {
+        for (const docData of generatedDocuments) {
+          // Extract a suitable filename from the generated document
+          const filePathParts = docData.name.split("/");
+          const fileName = filePathParts[filePathParts.length - 1];
+
+          // Upload generated document to Google Drive
+          const fileInfo = await uploadFileToDrive(
+            docData.fileUrl,
+            fileName,
+            folderInfo.folderId
+          );
+
+          console.log(`✅ Uploaded generated document to Drive: ${fileName}`);
+
+          // Add the Drive links to documentLinks array for the email
+          documentLinks.push({
+            name: fileName,
+            viewLink: fileInfo.viewLink,
+            downloadLink: fileInfo.downloadLink,
+            type: docData.type,
+          });
         }
       }
     } catch (driveError) {

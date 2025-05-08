@@ -260,71 +260,134 @@ const getEnrollmentFormDetails = async (req, res) => {
 };
 
 // Route to generate and upload filled RPL Intake form
-const generateRplIntake = async (req, res) => {
+// const GenerateRtoDocuments = async (
+//   applicationId,
+//   userId,
+//   enrollmentData,
+//   rplIntakeData
+// ) => {
+//   try {
+//     const { applicationId } = req.params;
+//     const { formData } = req.body;
+
+//     console.log(formData);
+//     if (!applicationId) {
+//       return res
+//         .status(400)
+//         .json({ success: false, message: "Application ID is required" });
+//     }
+
+//     if (!formData) {
+//       return res
+//         .status(400)
+//         .json({ success: false, message: "Form data is required" });
+//     }
+
+//     // Get the application document to verify it exists
+//     const applicationRef = db.collection("applications").doc(applicationId);
+//     const applicationDoc = await applicationRef.get();
+//     const userId = applicationDoc.data().userId;
+//     if (!applicationDoc.exists) {
+//       return res
+//         .status(404)
+//         .json({ success: false, message: "Application not found" });
+//     }
+
+//     // Fill the PDF form and upload to Firebase
+//     const result = await generateEnrollmentPdf(
+//       enrollmentData,
+//       applicationId,
+//       userId,
+//       db,
+//       bucket
+//     );
+//     const result2 = await fillRPLIntakeForm(
+//       rplIntakeData,
+//       applicationId,
+//       userId,
+//       db,
+//       bucket
+//     );
+
+//     return res.status(200).json({
+//       success: true,
+//       message: "RPL Intake form generated and uploaded successfully",
+//       fileUrl: result.fileUrl,
+//       // fileUrl2: result2.fileUrl,
+//     });
+//   } catch (error) {
+//     console.error("Error in generate-rpl-intake route:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to generate RPL Intake form",
+//       error: error.message,
+//     });
+//   }
+// };
+// Updated GenerateRtoDocuments function to return document URLs
+const GenerateRtoDocuments = async (
+  applicationId,
+  userId,
+  enrollmentData,
+  rplIntakeData
+) => {
   try {
-    const { applicationId } = req.params;
-    const { formData } = req.body;
+    console.log("Generating RTO documents for application:", applicationId);
 
-    console.log(formData);
-    if (!applicationId) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Application ID is required" });
+    if (!applicationId || !userId) {
+      throw new Error("Application ID and User ID are required");
     }
 
-    if (!formData) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Form data is required" });
+    if (!enrollmentData) {
+      throw new Error("Enrollment form data is required");
     }
 
-    // Get the application document to verify it exists
-    const applicationRef = db.collection("applications").doc(applicationId);
-    const applicationDoc = await applicationRef.get();
-    const userId = applicationDoc.data().userId;
-    if (!applicationDoc.exists) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Application not found" });
+    if (!rplIntakeData) {
+      throw new Error("RPL Intake form data is required");
     }
 
-    // Fill the PDF form and upload to Firebase
-    const result = await generateEnrollmentPdf(
-      formData,
+    // Generate and upload the enrollment PDF
+    const enrollmentResult = await generateEnrollmentPdf(
+      enrollmentData,
       applicationId,
       userId,
       db,
       bucket
     );
 
-    // const result2 = await fillRPLIntakeForm(
-    //   formData,
-    //   applicationId,
-    //   userId,
-    //   db,
-    //   bucket
-    // );
+    // Generate and upload the RPL intake form PDF
+    const rplIntakeResult = await fillRPLIntakeForm(
+      rplIntakeData,
+      applicationId,
+      userId,
+      db,
+      bucket
+    );
 
-    return res.status(200).json({
+    // Return the URLs of both generated documents
+    return {
       success: true,
-      message: "RPL Intake form generated and uploaded successfully",
-      fileUrl: result.fileUrl,
-      // fileUrl2: result2.fileUrl,
-    });
+      message: "Documents generated and uploaded successfully",
+      documents: {
+        enrollmentForm: {
+          fileUrl: enrollmentResult.fileUrl,
+          fileName: enrollmentResult.fileName,
+        },
+        rplIntakeForm: {
+          fileUrl: rplIntakeResult.fileUrl,
+          fileName: rplIntakeResult.fileName,
+        },
+      },
+    };
   } catch (error) {
-    console.error("Error in generate-rpl-intake route:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to generate RPL Intake form",
-      error: error.message,
-    });
+    console.error("Error generating RTO documents:", error);
+    throw error; // Propagate the error to be handled by the calling function
   }
 };
-
 module.exports = {
   submitRplIntakeForm,
   getEnrollmentFormDetails,
   submitEnrolmentForm,
-  generateRplIntake,
+  GenerateRtoDocuments,
   getRplIntakeFormDetails,
 };
