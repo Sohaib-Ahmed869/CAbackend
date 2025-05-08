@@ -42,7 +42,7 @@ const getAllRtos = async (req, res) => {
 //     }
 
 //     // Extract user email and documents
-//     const rtoEmail = rto || "asadawan16900@gmail.com"; // Replace with actual RTO email
+//     const rtoEmail = rto || "calcitetechnologies@gmail.com"; // Replace with actual RTO email
 //     const userEmail = application.user?.email || "No Email Provided";
 
 //     // Prepare Email Body with Styled HTML
@@ -339,7 +339,7 @@ const getAllRtos = async (req, res) => {
 //       }
 //     }
 //     // Extract user email and documents
-//     const rtoEmail = rto || "asadawan16900@gmail.com"; // Replace with actual RTO email
+//     const rtoEmail = rto || "calcitetechnologies@gmail.com"; // Replace with actual RTO email
 //     const userEmail = application.user?.email || "No Email Provided";
 //     // Create a folder in Google Drive with applicationId as the name
 //     const folderName = `Application_${application.applicationId}`;
@@ -646,7 +646,7 @@ const sendApplicationToRto = async (req, res) => {
     const userId = application.userId;
 
     // Extract user email and documents
-    const rtoEmail = rto || "asadawan16900@gmail.com"; // Replace with actual RTO email
+    const rtoEmail = rto || "calcitetechnologies@gmail.com"; // Replace with actual RTO email
     const userEmail = application.user?.email || "No Email Provided";
 
     // Create a folder in Google Drive with applicationId as the name

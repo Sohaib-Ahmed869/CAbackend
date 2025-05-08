@@ -1272,6 +1272,7 @@ const notifyAdminAboutPartialPayment = async (
       "sohaibsipra868@gmail.com",
       "sohaibsipra868@gmail.com",
       "sp21075asadullahtalat@gmail.com",
+      "calcitetechnologies@gmail.com"
     ];
 
     // Get admin user for login URL
