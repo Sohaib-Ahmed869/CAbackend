@@ -1,11 +1,13 @@
-// app.js
+// server.js
 const cors = require("cors");
 require("dotenv").config();
 const express = require("express");
 const Stripe = require("stripe");
 const { db } = require("./firebase");
-const { bucket } = require("./firebase"); // Using your existing firebase.js file
+const { bucket } = require("./firebase");
 const path = require("path");
+const { OpenAI } = require("openai");
+const bodyParser = require("body-parser");
 
 const logRequest = require("./middleware/logger");
 
@@ -26,24 +28,37 @@ const assessorRoutes = require("./routes/assesorRoutes");
 const taskRoutes = require("./routes/taskRoutes");
 const timerRoutes = require("./routes/timerRoutes");
 const FormRoutes = require("./routes/rtoFormRoutes");
+
 const app = express();
+const PORT = process.env.PORT || 5000;
+
+// Configure OpenAI
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+// Middleware
 app.use(express.json());
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
+app.use(bodyParser.json());
 app.use(
   cors({
-    // origin: "https://portal.certifiedaustralia.com.au",
-    // origin: "http://localhost:5173",
-    // origin: "http://catestbucketnew.s3-website-ap-southeast-2.amazonaws.com",
-    origin: "https://ca-silk.vercel.app",
-    // origin: "https://ca-git-tester-sohaib-ahmeds-projects-a27ab513.vercel.app",
-    // origin: "http://catestbucketnew.s3-website-ap-southeast-2.amazonaws.com",
+    // Configure your origins based on environment
+    origin:
+      process.env.NODE_ENV === "production"
+        ? "https://portal.certifiedaustralia.com.au"
+        : ["https://ca-silk.vercel.app", "http://localhost:5173"],
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 app.use(logRequest);
+app.use(express.static(path.join(__dirname, "public")));
 app.set("trust proxy", true);
 const isProduction = process.env.NODE_ENV === "production";
 
+// API Routes
 app.use("/api/users", userRoutes);
 app.use("/api/applications", applicationRoutes);
 app.use("/api/auth", authRoutes);
@@ -56,12 +71,79 @@ app.use("/api/agent", agentRoutes);
 app.use("/api/call", callRoutes);
 app.use("/api/industry", industryRoutes);
 app.use("/api/assessor", assessorRoutes);
-// Add this line to your existing routes
 app.use("/api/tasks", taskRoutes);
 app.use("/api/timer", timerRoutes);
 
-// proxy for downloading documents
+// Chatbot API endpoint
+app.post("/api/chat", async (req, res) => {
+  try {
+    console.log("Received chatbot request:", req.body);
+    const { message, chatHistory } = req.body;
 
+    // Format the conversation history for OpenAI
+    const formattedHistory = chatHistory.map((msg) => ({
+      role: msg.sender === "user" ? "user" : "assistant",
+      content: msg.text,
+    }));
+
+    // Add system message with context about forms
+    const messages = [
+      {
+        role: "system",
+        content: `You are a helpful assistant for Certified Australia, an RTO (Registered Training Organization) that helps students get certified. 
+        Your job is to assist students with filling out their enrollment forms and RPL (Recognition of Prior Learning) assessment documents.
+        
+        The forms include:
+        1. Enrollment Form - Contains personal details, contact information, language and cultural diversity, education details, etc.
+        2. RPL Assessment Forms - Used for Recognition of Prior Learning, includes evidence collection, self-assessment, employment verification, and referee testimonials.
+        
+        Be specific and helpful with your answers. If a student is stuck on a particular section, explain what information they need to provide and why it's important.
+        
+        Important sections in the enrollment form include:
+        - Personal details and contact information
+        - Emergency contact details
+        - Cultural and language diversity
+        - Education history
+        - Employment status
+        - Previous qualifications
+        
+        Important sections in the RPL forms include:
+        - Student declaration
+        - Evidence collection (photos, payslips, certificates, work samples)
+        - Self-assessment of competencies
+        - Employment verification
+        - Referee testimonials
+        
+        Answer questions clearly and concisely. If you don't know the answer, say so and suggest contacting Certified Australia directly at info@certifiedaustralia.com.au.`,
+      },
+      ...formattedHistory,
+      {
+        role: "user",
+        content: message,
+      },
+    ];
+
+    // Get response from OpenAI
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4", // Use appropriate model based on your needs
+      messages: messages,
+      max_tokens: 500,
+      temperature: 0.7,
+    });
+
+    // Send response back to client
+    res.json({
+      response: completion.choices[0].message.content,
+    });
+  } catch (error) {
+    console.error("Error in chatbot API:", error);
+    res
+      .status(500)
+      .json({ error: "An error occurred while processing your request." });
+  }
+});
+
+// proxy for downloading documents
 app.get("/proxy-file", async (req, res) => {
   try {
     const fileUrl = req.query.url;
@@ -128,13 +210,16 @@ app.get("/proxy-file", async (req, res) => {
     res.status(500).send(`Error processing request: ${error.message}`);
   }
 });
+
+// Root route
 app.get("/", (req, res) => {
-  res.send("Certified Australia is running now again");
+  res.send("Certified Australia API is running");
 });
 
+// Start the reminder scheduler
 startReminderScheduler();
 
-const PORT = process.env.PORT || 5000;
+// Start server
 app.listen(PORT, () => {
   console.log(
     `Server running in ${
