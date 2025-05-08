@@ -2,11 +2,28 @@
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
-const PDFDocument = require("pdfkit");
+const {
+  Document,
+  Packer,
+  Paragraph,
+  TextRun,
+  HeadingLevel,
+  AlignmentType,
+  UnderlineType,
+  BorderStyle,
+  Tab,
+  TabStopPosition,
+  TabStopType,
+  CheckBox,
+  Table,
+  TableRow,
+  TableCell,
+  WidthType,
+} = require("docx");
 
 /**
- * Fill RPL Assessment Form by creating a new PDF from scratch
- * @param {Object} formData - The form data to fill in the PDF
+ * Fill RPL Assessment Form by creating a new DOCX document from scratch
+ * @param {Object} formData - The form data to fill in the document
  * @param {string} applicationId - The application ID
  * @param {string} userId - The user ID
  * @param {Object} db - Firestore database reference
@@ -21,403 +38,814 @@ const fillRPLIntakeForm = async (
   bucket
 ) => {
   try {
-    // Create a new PDF document instead of trying to fill an existing one
+    // Create a temporary file path
     const tempFilePath = path.join(
       os.tmpdir(),
-      `rpl_form_${applicationId}.pdf`
+      `rpl_form_${applicationId}.docx`
     );
 
-    // Create a document
-    const doc = new PDFDocument({
-      size: "A4",
-      margin: 50,
-      info: {
-        Title: "RPL Assessment Form",
-        Author: "Certified Australia",
-        Subject: "Recognition of Prior Learning Assessment",
-      },
-    });
-
-    // Pipe output to file
-    const stream = fs.createWriteStream(tempFilePath);
-    doc.pipe(stream);
-
-    // Helper function to add a title
-    const addTitle = (text, fontSize = 16) => {
-      doc
-        .font("Helvetica-Bold")
-        .fontSize(fontSize)
-        .text(text, { align: "center" });
-      doc.moveDown();
+    // Helper function to create a title paragraph
+    const createTitle = (text, level = HeadingLevel.HEADING_1) => {
+      return new Paragraph({
+        text: text,
+        heading: level,
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 200, after: 200 },
+      });
     };
 
-    // Helper function to add a section heading
-    const addHeading = (text, fontSize = 12) => {
-      doc.font("Helvetica-Bold").fontSize(fontSize).text(text);
-      doc.moveDown(0.5);
+    // Helper function to create a heading paragraph
+    const createHeading = (text, level = HeadingLevel.HEADING_2) => {
+      return new Paragraph({
+        text: text,
+        heading: level,
+        spacing: { before: 200, after: 100 },
+      });
     };
 
-    // Helper function to add a form field
-    const addField = (label, value, options = {}) => {
+    // Helper function to create a normal paragraph
+    const createParagraph = (text, options = {}) => {
       const defaultOptions = {
-        continued: false,
-        indent: 20,
-        paragraphGap: 5,
-        width: 450,
-        align: "left",
+        alignment: AlignmentType.LEFT,
+        spacing: { before: 100, after: 100 },
+        indent: { left: 0 },
       };
       const mergedOptions = { ...defaultOptions, ...options };
 
-      doc.font("Helvetica-Bold").text(`${label}:`, mergedOptions);
-      doc
-        .font("Helvetica")
-        .text(value || "N/A", {
+      if (options.bold) {
+        return new Paragraph({
+          children: [
+            new TextRun({
+              text: text,
+              bold: true,
+            }),
+          ],
           ...mergedOptions,
-          indent: mergedOptions.indent + 10,
         });
-      doc.moveDown();
+      }
+
+      return new Paragraph({
+        text: text,
+        ...mergedOptions,
+      });
     };
 
-    // Helper function to add a checkbox field
-    const addCheckbox = (label, isChecked) => {
-      doc
-        .font("Helvetica")
-        .text(`[${isChecked ? "X" : " "}] ${label}`, { continued: false });
-      doc.moveDown(0.5);
+    // Helper function to create a form field
+    const createFormField = (label, value = "", options = {}) => {
+      const defaultOptions = {
+        spacing: { before: 100, after: 100 },
+      };
+      const mergedOptions = { ...defaultOptions, ...options };
+
+      return new Paragraph({
+        children: [
+          new TextRun({
+            text: label,
+            bold: true,
+          }),
+          new TextRun({
+            text: value || "",
+            underline: {
+              type: UnderlineType.SINGLE,
+            },
+          }),
+        ],
+        ...mergedOptions,
+      });
     };
 
-    // Add logo (if available)
-    // doc.image('path/to/logo.png', { width: 150, align: 'center' });
+    // Helper function to create a bullet point
+    const createBullet = (text, options = {}) => {
+      const defaultOptions = {
+        indent: { left: 720 },
+        spacing: { before: 100, after: 100 },
+      };
+      const mergedOptions = { ...defaultOptions, ...options };
 
-    // Add title
-    addTitle("Recognition of Prior Learning (RPL) Assessment Form", 18);
-    doc.moveDown();
-
-    // Add header information
-    doc
-      .font("Helvetica")
-      .fontSize(10)
-      .text("Certified Australia", { align: "right" });
-    doc.text(`Date: ${new Date().toLocaleDateString()}`, { align: "right" });
-    doc.text(`Reference: RPL-${applicationId}`, { align: "right" });
-    doc.moveDown(2);
-
-    // ------------------------------------------
-    // Student Details Section
-    // ------------------------------------------
-    addHeading("1. Student Details", 14);
-
-    if (formData.studentDetails) {
-      addField("Name", formData.studentDetails.name);
-    }
-
-    addField("Course/Qualification", formData.courseQualification);
-    addField("Date", new Date().toLocaleDateString());
-
-    doc.moveDown();
-
-    // ------------------------------------------
-    // Declaration Section
-    // ------------------------------------------
-    addHeading("2. Declaration Statements", 14);
-
-    // Add declaration bullets
-    const declarations = [
-      "I declare that the evidence provided for the RPL assessment is true, accurate, and authentic.",
-      "I confirm that all documentation submitted is my own or has been obtained with proper authorisation.",
-      "I agree to comply with all RPL process requirements, including submitting any additional evidence requested by the assessor.",
-      "I understand that any false or misleading information may result in the rejection of my RPL application.",
-      "I acknowledge that the RTO may contact my employer, referee, or other relevant parties to verify the authenticity of the evidence provided.",
-      "I have been informed of my rights to appeal the assessment outcome if required.",
-    ];
-
-    declarations.forEach((declaration) => {
-      doc.font("Helvetica").fontSize(10).text(`• ${declaration}`, {
-        indent: 10,
-        continued: false,
-        width: 450,
-        align: "left",
+      return new Paragraph({
+        text: text,
+        bullet: { level: 0 },
+        ...mergedOptions,
       });
-      doc.moveDown(0.5);
-    });
+    };
 
-    doc.moveDown();
+    // Helper function to create a checkbox field
+    const createCheckboxField = (text, isChecked = false, options = {}) => {
+      const defaultOptions = {
+        indent: { left: 720 },
+        spacing: { before: 100, after: 100 },
+      };
+      const mergedOptions = { ...defaultOptions, ...options };
 
-    // Student signature section
-    addHeading("3. Student Acknowledgement", 14);
-    addField("Student Name", formData.studentDetails?.name);
-    doc.moveDown();
+      const checkSymbol = isChecked ? "☑" : "☐";
 
-    // Add signature line
-    doc.lineWidth(1).moveTo(50, doc.y).lineTo(250, doc.y).stroke();
+      return new Paragraph({
+        children: [
+          new TextRun({
+            text: `${checkSymbol} ${text}`,
+          }),
+        ],
+        ...mergedOptions,
+      });
+    };
 
-    doc.text("Signature", 50, doc.y + 5);
+    // Helper function to create a signature line
+    const createSignatureLine = (
+      label = "Signature",
+      signatureText = "",
+      options = {}
+    ) => {
+      const defaultOptions = {
+        spacing: { before: 300, after: 100 },
+      };
+      const mergedOptions = { ...defaultOptions, ...options };
 
-    // Add date line
-    doc
-      .lineWidth(1)
-      .moveTo(300, doc.y - 5)
-      .lineTo(500, doc.y - 5)
-      .stroke();
-
-    doc.text("Date", 300, doc.y);
-
-    doc.moveDown(2);
-
-    // ------------------------------------------
-    // Confirmation of Assessment
-    // ------------------------------------------
-    addHeading("4. Confirmation of Assessment", 14);
-
-    if (formData.studentInfo) {
-      addField("Student Name", formData.studentDetails?.name);
-      addField("Qualification", formData.courseQualification);
-      addField("Email", formData.studentInfo.email);
-      addField("Mobile", formData.studentInfo.mobile);
-      addField("Date of Birth", formData.studentInfo.dob);
-    }
-
-    doc.moveDown();
-
-    // Add a page break
-    doc.addPage();
-
-    // ------------------------------------------
-    // Self-Assessment
-    // ------------------------------------------
-    addHeading(
-      "5. Recognition of Prior Learning (RPL) Student Self-Assessment",
-      14
-    );
-
-    if (formData.selfAssessment) {
-      // Question 1
-      addField(
-        "What are your key skills and strengths relevant to this qualification?",
-        formData.selfAssessment.keySkills,
-        { paragraphGap: 10 }
-      );
-
-      // Question 2
-      addField(
-        "Describe your work experience and how it relates to the units of competency in this course",
-        formData.selfAssessment.workExperience,
-        { paragraphGap: 10 }
-      );
-
-      // Question 3
-      addField(
-        "What specific tasks or responsibilities have you performed in your workplace that demonstrate your competency?",
-        formData.selfAssessment.specificTasks,
-        { paragraphGap: 10 }
-      );
-
-      // Question 4
-      addField(
-        "Have you undertaken any formal or informal training relevant to this qualification?",
-        formData.selfAssessment.formalTraining,
-        { paragraphGap: 10 }
-      );
-
-      // Question 5
-      addField(
-        "Are there any areas where you feel you need additional training or support?",
-        formData.selfAssessment.additionalTraining,
-        { paragraphGap: 10 }
-      );
-    }
-
-    doc.moveDown();
-
-    // ------------------------------------------
-    // Competencies Section
-    // ------------------------------------------
-    addHeading("6. Alignment with Competencies", 14);
-    doc
-      .font("Helvetica")
-      .text(
-        "Please review the units of competency for this qualification and indicate whether you believe you are competent in each area:"
-      );
-    doc.moveDown();
-
-    // Standard competencies for waterproofing
-    const allCompetencies = [
-      "Investigate business opportunities",
-      "Manage finances for new business ventures",
-      "Apply basic levelling procedures",
-      "Carry out basic demolition",
-      "Carry out concreting to simple forms",
-      "Work effectively and sustainably in the construction industry",
-      "Plan and organise work",
-      "Conduct workplace communication",
-      "Carry out measurements and calculations",
-      "Read and interpret plans and specifications",
-      "Apply WHS requirements, policies and procedures in the construction industry",
-      "Handle waterproofing materials and components",
-      "Use waterproofing tools and equipment",
-      "Prepare surfaces for waterproofing application",
-      "Apply waterproofing system to below ground level wet areas",
-      "Apply waterproofing process to internal wet areas",
-      "Apply waterproofing process to external above-ground wet areas",
-      "Apply waterproofing remedial processes",
-      "Assess construction waterproofing processes",
-    ];
-
-    // Track claimed competencies
-    const claimedCompetencies = formData.competencies || [];
-
-    // Add each competency as a checkbox
-    allCompetencies.forEach((competency) => {
-      const isChecked = claimedCompetencies.includes(competency);
-      addCheckbox(competency, isChecked);
-    });
-
-    doc.moveDown();
-
-    // Add a page break
-    doc.addPage();
-
-    // ------------------------------------------
-    // Employment Verification
-    // ------------------------------------------
-    addHeading("7. Employment Verification", 14);
-
-    if (formData.employers && formData.employers.length > 0) {
-      // Handle each employer
-      formData.employers.forEach((employer, index) => {
-        addHeading(`Employer ${index + 1}`, 12);
-
-        addField("Employer/Organisation", employer.organisationName);
-        addField("Supervisor/Manager Name", employer.supervisorName);
-        addField("Position/Title", employer.supervisorPosition);
-        addField("Contact Number", employer.contactNumber);
-        addField("Email Address", employer.email);
-        addField("Employee Name", formData.studentDetails?.name);
-        addField("Job Title", employer.jobTitle);
-        addField("Start Date", employer.startDate);
-        addField("End Date", employer.endDate);
-
-        // Employment type
-        doc.font("Helvetica-Bold").text("Employment Type:");
-        addCheckbox("Full-Time", employer.employmentType === "Full-Time");
-        addCheckbox("Part-Time", employer.employmentType === "Part-Time");
-        addCheckbox("Casual", employer.employmentType === "Casual");
-
-        // Description of duties
-        addField("Description of Duties", employer.dutiesDescription, {
-          paragraphGap: 10,
+      if (signatureText) {
+        return new Paragraph({
+          children: [
+            new TextRun({
+              text: signatureText,
+              font: "Brush Script MT", // More widely available signature font
+              size: 40, // Made even larger
+              italics: true, // Added italics for signature look
+              color: "000000", // Ensures black color
+            }),
+            new TextRun({
+              text: "\n",
+              break: 1,
+            }),
+            new TextRun({
+              text: label,
+              bold: true,
+            }),
+          ],
+          ...mergedOptions,
         });
+      } else {
+        return new Paragraph({
+          children: [
+            new TextRun({
+              text: "____________________________",
+            }),
+            new TextRun({
+              text: "\n",
+              break: 1,
+            }),
+            new TextRun({
+              text: label,
+              bold: true,
+            }),
+          ],
+          ...mergedOptions,
+        });
+      }
+    };
 
-        // Employer signature
-        doc.moveDown();
+    // Helper function to create a text box for longer text inputs
+    const createTextBox = (text = "", options = {}) => {
+      const defaultOptions = {
+        spacing: { before: 100, after: 100 },
+        border: {
+          top: { style: BorderStyle.SINGLE, size: 1 },
+          bottom: { style: BorderStyle.SINGLE, size: 1 },
+          left: { style: BorderStyle.SINGLE, size: 1 },
+          right: { style: BorderStyle.SINGLE, size: 1 },
+        },
+        padding: { top: 100, bottom: 100, left: 100, right: 100 },
+      };
+      const mergedOptions = { ...defaultOptions, ...options };
 
-        // Add signature line
-        doc.lineWidth(1).moveTo(50, doc.y).lineTo(250, doc.y).stroke();
-
-        doc.text("Employer Signature", 50, doc.y + 5);
-
-        // Add date line
-        doc
-          .lineWidth(1)
-          .moveTo(300, doc.y - 5)
-          .lineTo(500, doc.y - 5)
-          .stroke();
-
-        doc.text("Date", 300, doc.y);
-
-        doc.moveDown(2);
+      return new Paragraph({
+        text: text || "",
+        ...mergedOptions,
       });
-    }
+    };
 
-    // Add a page break if needed
-    if (doc.y > 650) {
-      doc.addPage();
-    } else {
-      doc.moveDown(2);
-    }
+    // Extract relevant data from formData
+    const {
+      studentDeclaration,
+      courseQualification,
+      confirmationOfReassessment,
+      selfAssessment,
+      employerVerification,
+      refereeTestimonial,
+    } = formData;
 
-    // ------------------------------------------
-    // Referee Testimonial
-    // ------------------------------------------
-    addHeading(
-      "8. Referee Testimonial and Skills Verification Declaration",
-      14
-    );
+    // Get list of competencies from selfAssessment.competencies
+    const competenciesList = Object.keys(selfAssessment.competencies || {});
 
-    if (formData.refereeTestimonial) {
-      addField("Student Name", formData.studentDetails?.name);
-      addField("Qualification", formData.courseQualification);
-      addField(
-        "Employment Period",
-        formData.refereeTestimonial.employmentPeriod
-      );
+    // Create document sections/content
+    const doc = new Document({
+      title: "RPL Assessment Form",
+      description: "Recognition of Prior Learning Assessment",
+      sections: [
+        {
+          properties: {},
+          children: [
+            // COVER LETTER
+            createTitle("Cover Letter for RPL Assessment Completion"),
+            createParagraph("Dear Student,"),
+            createParagraph(
+              "We are reaching out to guide you through the next steps of your Recognition of Prior Learning (RPL) assessment process. As part of your assessment, you are required to complete specific sections of the assessment to ensure compliance and provide the necessary evidence for your qualification."
+            ),
+            createParagraph(
+              "Below are the details of the sections that require your attention:"
+            ),
 
-      doc.moveDown();
+            createHeading("RPL Assessment Checklist", HeadingLevel.HEADING_2),
 
-      addHeading("Referee Contact Details:", 12);
-      addField("Name", formData.refereeTestimonial.refereeName);
-      addField(
-        "Qualification/Licence Details",
-        formData.refereeTestimonial.qualificationDetails
-      );
-      addField("Position", formData.refereeTestimonial.position);
-      addField("Organisation", formData.refereeTestimonial.organisation);
-      addField("Phone Number", formData.refereeTestimonial.phoneNumber);
-      addField("Email Address", formData.refereeTestimonial.email);
+            createParagraph("1. Initial Steps", { bold: true }),
+            createBullet("[ ] Student Application Received"),
+            createBullet("[ ] Confirmation of Enrolment (COE) Issued"),
+            createBullet("[ ] Student Declaration Signed"),
 
-      doc.moveDown();
+            createParagraph("2. Evidence Collection", { bold: true }),
+            createBullet("[ ] Photos or Videos of Tasks Performed"),
+            createBullet("[ ] Payslips or Employment Contracts"),
+            createBullet("[ ] Previous Certificates or Qualifications"),
+            createBullet("[ ] Work Samples (Reports, Documentation, etc.)"),
+            createBullet("[ ] Referee Testimonials and Declarations"),
+            createBullet("[ ] Employer Verification"),
+            createBullet("[ ] Student Self-Assessment"),
 
-      // Referee signature
-      // Add signature line
-      doc.lineWidth(1).moveTo(50, doc.y).lineTo(250, doc.y).stroke();
+            createParagraph("3. Assessment Process", { bold: true }),
+            createBullet("[ ] Competency Mapping Completed"),
+            createBullet("[ ] Competency Conversation Conducted"),
+            createBullet("[ ] Skills Observation Checklist Completed"),
+            createBullet("[ ] Third-Party RPL Kit Completed by Assessor"),
+            createBullet("[ ] Evidence Authentication Verified"),
 
-      doc.text("Referee Signature", 50, doc.y + 5);
+            createParagraph("4. Compliance and Reporting", { bold: true }),
+            createBullet("[ ] Assessor's Final Decision Recorded"),
+            createBullet("[ ] Student Feedback Survey Issued"),
+            createBullet("[ ] Records Management Completed"),
+            createBullet("[ ] Appeals Process Communicated"),
 
-      // Add date line
-      doc
-        .lineWidth(1)
-        .moveTo(300, doc.y - 5)
-        .lineTo(500, doc.y - 5)
-        .stroke();
+            createParagraph("5. Post-Assessment Steps", { bold: true }),
+            createBullet("[ ] Certification Issued"),
+            createBullet("[ ] Gap Training Plan Provided (If Required)"),
+            createBullet(
+              "[ ] Compliance Review Conducted; including validation"
+            ),
 
-      doc.text("Date", 300, doc.y);
-    }
+            createHeading("Outcome of Assessment", HeadingLevel.HEADING_2),
+            createParagraph(
+              "Upon completing the submission for assessment, we will inform you of the outcome of your RPL assessment."
+            ),
 
-    // Finalize the PDF
-    doc.end();
+            createParagraph("Sections to Be Completed by you:", { bold: true }),
+            createParagraph("1. Declaration", { bold: true }),
+            createParagraph(
+              "Please complete and sign the student declaration form provided. This is a mandatory step to confirm your understanding of the RPL process and compliance with our requirements."
+            ),
 
-    // Wait for the writing to finish
-    await new Promise((resolve, reject) => {
-      stream.on("finish", resolve);
-      stream.on("error", reject);
+            createParagraph("2. Evidence Collection", { bold: true }),
+            createParagraph(
+              "Submit all relevant supporting documents as listed below:"
+            ),
+            createBullet("Photos or videos of tasks you have performed."),
+            createBullet(
+              "Pay slips or employment contracts as proof of work experience."
+            ),
+            createBullet(
+              "Copies of any previous certificates or qualifications."
+            ),
+            createBullet(
+              "Samples of your work, such as reports or documentation."
+            ),
+            createBullet(
+              "Complete the self-assessment form provided to reflect your competency levels."
+            ),
+            createBullet(
+              "Referee testimonials and declarations from employers or colleagues."
+            ),
+            createBullet(
+              "Employer verification confirming your roles and responsibilities."
+            ),
+
+            createParagraph("Next Steps:", { bold: true }),
+            createParagraph(
+              "Once you have completed the required sections, please ensure all documents are emailed directly to our support team at info@certifiedaustralia.com.au. Our team will review your submission and notify you if any additional information is required."
+            ),
+            createParagraph(
+              "If you have any questions or need assistance with completing these sections, please do not hesitate to contact us. Our email is info@certifiedaustralia.com.au."
+            ),
+            createParagraph("Best regards,"),
+            createParagraph("Certified Australia"),
+
+            // Page break
+            new Paragraph({
+              text: "",
+              pageBreakBefore: true,
+            }),
+
+            // STUDENT DECLARATION
+            createTitle(
+              "Recognition of Prior Learning (RPL) Student Declaration"
+            ),
+            createParagraph(
+              "This declaration is a formal statement from the student acknowledging their participation in the RPL process and agreeing to the terms and conditions outlined by the RTO (Registered Training Organisation). See RTO handbook for more information."
+            ),
+
+            createParagraph("1. Student Details", { bold: true }),
+            createFormField("Name: ", studentDeclaration.name || ""),
+            createFormField(
+              "Course/Qualification: ",
+              courseQualification || ""
+            ),
+            createFormField(
+              "Date: ",
+              studentDeclaration.date || new Date().toLocaleDateString()
+            ),
+
+            createParagraph("2. Declaration Statements", { bold: true }),
+            createBullet(
+              "I declare that the evidence provided for the RPL assessment is true, accurate, and authentic."
+            ),
+            createBullet(
+              "I confirm that all documentation submitted is my own or has been obtained with proper authorisation."
+            ),
+            createBullet(
+              "I agree to comply with all RPL process requirements, including submitting any additional evidence requested by the assessor."
+            ),
+            createBullet(
+              "I understand that any false or misleading information may result in the rejection of my RPL application."
+            ),
+            createBullet(
+              "I acknowledge that the RTO may contact my employer, referee, or other relevant parties to verify the authenticity of the evidence provided."
+            ),
+            createBullet(
+              "I have been informed of my rights to appeal the assessment outcome if required."
+            ),
+            createBullet(
+              "More information can be found at https://www.asqa.gov.au/guidance-resources/resources-providers/faqs/recognition-prior-learning-rpl"
+            ),
+
+            createParagraph("3. Student Acknowledgement", { bold: true }),
+            createParagraph(
+              `I, ${
+                studentDeclaration.name || "_______________________"
+              } (Student Name), have read and understood the above statements. I agree to the terms and conditions outlined as part of the RPL process.`
+            ),
+
+            createSignatureLine(
+              "Signature",
+              studentDeclaration.signature || ""
+            ),
+            createFormField("Date: ", studentDeclaration.date || ""),
+
+            createParagraph("4. Acknowledgement", { bold: true }),
+            createParagraph(
+              `I, _______________________ (Certified Australia Representative), confirm that I have explained the RPL process and requirements to the student.`
+            ),
+
+            createSignatureLine("Signature"),
+            createSignatureLine("Date"),
+
+            // Page break
+            new Paragraph({
+              text: "",
+              pageBreakBefore: true,
+            }),
+
+            // CONFIRMATION OF ASSESSMENT
+            createTitle("Confirmation of Assessment"),
+
+            createHeading("STUDENT INFORMATION", HeadingLevel.HEADING_2),
+
+            createFormField(
+              "Student Name: ",
+              confirmationOfReassessment.studentName || ""
+            ),
+            createFormField(
+              "Qualification: ",
+              confirmationOfReassessment.qualification ||
+                courseQualification ||
+                ""
+            ),
+            createFormField("Email: ", confirmationOfReassessment.email || ""),
+            createFormField(
+              "Mobile: ",
+              confirmationOfReassessment.mobile || ""
+            ),
+            createFormField("D.O.B: ", confirmationOfReassessment.dob || ""),
+
+            createParagraph("Dear student,"),
+            createParagraph(
+              "Thank you for your patience during the reassessment process. This document confirms that your RPL application will be reassessed as part of our compliance procedures."
+            ),
+            createParagraph(
+              "You are required to complete the 'Declaration' and 'Evidence Collection' sections as part of this reassessment process. All required documents will be provided to assist you in this process."
+            ),
+            createParagraph(
+              "Below is the completed checklist outlining the steps to be undertaken during the reassessment:"
+            ),
+
+            createHeading("Outcome of Assessment", HeadingLevel.HEADING_2),
+            createParagraph(
+              "Upon completing the submission for reassessment, we will inform you of the outcome of your RPL reassessment."
+            ),
+
+            createParagraph("Certified Australia", {
+              alignment: AlignmentType.RIGHT,
+            }),
+
+            // Page break
+            new Paragraph({
+              text: "",
+              pageBreakBefore: true,
+            }),
+
+            // SELF-ASSESSMENT
+            createTitle(
+              "Recognition of Prior Learning (RPL) Student Self-Assessment"
+            ),
+            createParagraph(
+              "This self-assessment form allows students to reflect on their skills, knowledge, and experience. Please complete this form to the best of your ability, providing specific examples where possible."
+            ),
+
+            createParagraph("1. Student Details", { bold: true }),
+            createFormField("Name: ", studentDeclaration.name || ""),
+            createFormField(
+              "Course/Qualification: ",
+              courseQualification || ""
+            ),
+
+            createParagraph("2. Self-Assessment Questions", { bold: true }),
+            createParagraph("Please answer the following questions in detail."),
+
+            createParagraph(
+              "1. What are your key skills and strengths relevant to this qualification?",
+              { bold: true }
+            ),
+            createTextBox(selfAssessment.keySkills || "", { height: 200 }),
+
+            createParagraph(
+              "2. Describe your work experience and how it relates to the units of competency in this course (briefly outline your industry experience).",
+              { bold: true }
+            ),
+            createTextBox(selfAssessment.workExperience || "", { height: 200 }),
+
+            createParagraph(
+              "3. What specific tasks or responsibilities have you performed in your workplace that demonstrate your competency?",
+              { bold: true }
+            ),
+            createTextBox(selfAssessment.tasksResponsibilities || "", {
+              height: 200,
+            }),
+
+            createParagraph(
+              "4. Have you undertaken any formal or informal training relevant to this qualification? If yes, please provide details.",
+              { bold: true }
+            ),
+            createTextBox(selfAssessment.training || "", { height: 200 }),
+
+            createParagraph(
+              "5. Are there any areas where you feel you need additional training or support? If yes, please explain.",
+              { bold: true }
+            ),
+            createTextBox(selfAssessment.additionalSupport || "", {
+              height: 200,
+            }),
+
+            // Page break
+            new Paragraph({
+              text: "",
+              pageBreakBefore: true,
+            }),
+
+            // COMPETENCIES
+            createParagraph("3. Alignment with Competencies", { bold: true }),
+            createParagraph(
+              "Please review the units of competency for this qualification and indicate whether you believe you are competent in each area:"
+            ),
+
+            // Map through competencies from selfAssessment.competencies
+            ...competenciesList.map((competency) =>
+              createCheckboxField(
+                competency,
+                selfAssessment.competencies[competency] || false
+              )
+            ),
+
+            createParagraph("4. Student Declaration", { bold: true }),
+            createParagraph(
+              `I, ${
+                studentDeclaration.name || "_______________________"
+              } (Student Name), declare that the information provided in this self-assessment is accurate and true to the best of my knowledge. I understand that this self-assessment will be used as part of the RPL process and may require verification.`
+            ),
+
+            createSignatureLine("Signature"),
+            createFormField("Date: ", studentDeclaration.date || ""),
+
+            // Page break
+            new Paragraph({
+              text: "",
+              pageBreakBefore: true,
+            }),
+
+            // EMPLOYMENT VERIFICATION (1/2)
+            createTitle("Employment Verification Document (1/2)"),
+            createParagraph(
+              "This form is used to verify the employment details of a student applying for Recognition of Prior Learning (RPL). It must be completed by the student's employer or supervisor."
+            ),
+
+            createParagraph("1. Employer Details", { bold: true }),
+            createFormField(
+              "Name of Employer/Organisation: ",
+              employerVerification.employer1.orgName || ""
+            ),
+            createFormField(
+              "Supervisor/Manager Name: ",
+              employerVerification.employer1.supervisorName || ""
+            ),
+            createFormField(
+              "Position/Title: ",
+              employerVerification.employer1.position || ""
+            ),
+            createFormField(
+              "Contact Number: ",
+              employerVerification.employer1.contactNumber || ""
+            ),
+            createFormField(
+              "Email Address: ",
+              employerVerification.employer1.email || ""
+            ),
+
+            createParagraph("2. Employment Details", { bold: true }),
+            createFormField(
+              "Employee Name: ",
+              employerVerification.employer1.employeeName || ""
+            ),
+            createFormField(
+              "Job Title: ",
+              employerVerification.employer1.jobTitle || ""
+            ),
+            createFormField(
+              "Start Date: ",
+              employerVerification.employer1.startDate || ""
+            ),
+            createFormField(
+              "End Date: ",
+              employerVerification.employer1.endDate || ""
+            ),
+
+            // Employment Type checkboxes
+            createParagraph("Employment Type:", { bold: true }),
+            createCheckboxField(
+              "Full-Time",
+              employerVerification.employer1.employmentType === "Full-Time"
+            ),
+            createCheckboxField(
+              "Part-Time",
+              employerVerification.employer1.employmentType === "Part-Time"
+            ),
+            createCheckboxField(
+              "Casual",
+              employerVerification.employer1.employmentType === "Casual"
+            ),
+
+            createParagraph("3. Description of Duties", { bold: true }),
+            createParagraph(
+              "Please provide a detailed description of the student's duties and responsibilities; include any additional comments:"
+            ),
+            createTextBox(employerVerification.employer1.duties || "", {
+              height: 200,
+            }),
+
+            createParagraph("4. Alignment with Competencies", { bold: true }),
+            createParagraph(
+              "Please confirm which of the following competencies the student demonstrated during their employment. Refer to the attached relevant referee testimonial and skills verification declaration."
+            ),
+
+            createParagraph("6. Employer Declaration", { bold: true }),
+            createParagraph(
+              `I, ${
+                employerVerification.employer1.supervisorName ||
+                "_______________________"
+              } (Employer/Supervisor Name), confirm that the above information is accurate and true to the best of my knowledge.`
+            ),
+
+            createSignatureLine(
+              "Signature",
+              employerVerification.employer1.supervisorName || ""
+            ),
+            createFormField("Date: ", ""),
+
+            // Page break
+            new Paragraph({
+              text: "",
+              pageBreakBefore: true,
+            }),
+
+            // EMPLOYMENT VERIFICATION (2/2) - If applicable
+            createTitle(
+              "Employment Verification Document (2/2) (if applicable)"
+            ),
+            createParagraph(
+              "This form is used to verify the employment details of a student applying for Recognition of Prior Learning (RPL). It must be completed by the student's employer or supervisor."
+            ),
+
+            createParagraph("1. Employer Details", { bold: true }),
+            createFormField(
+              "Name of Employer/Organisation: ",
+              employerVerification.employer2.orgName || ""
+            ),
+            createFormField(
+              "Supervisor/Manager Name: ",
+              employerVerification.employer2.supervisorName || ""
+            ),
+            createFormField(
+              "Position/Title: ",
+              employerVerification.employer2.position || ""
+            ),
+            createFormField(
+              "Contact Number: ",
+              employerVerification.employer2.contactNumber || ""
+            ),
+            createFormField(
+              "Email Address: ",
+              employerVerification.employer2.email || ""
+            ),
+
+            createParagraph("2. Employment Details", { bold: true }),
+            createFormField(
+              "Employee Name: ",
+              employerVerification.employer2.employeeName || ""
+            ),
+            createFormField(
+              "Job Title: ",
+              employerVerification.employer2.jobTitle || ""
+            ),
+            createFormField(
+              "Start Date: ",
+              employerVerification.employer2.startDate || ""
+            ),
+            createFormField(
+              "End Date: ",
+              employerVerification.employer2.endDate || ""
+            ),
+
+            // Employment Type checkboxes
+            createParagraph("Employment Type:", { bold: true }),
+            createCheckboxField(
+              "Full-Time",
+              employerVerification.employer2.employmentType === "Full-Time"
+            ),
+            createCheckboxField(
+              "Part-Time",
+              employerVerification.employer2.employmentType === "Part-Time"
+            ),
+            createCheckboxField(
+              "Casual",
+              employerVerification.employer2.employmentType === "Casual"
+            ),
+
+            createParagraph("3. Description of Duties", { bold: true }),
+            createParagraph(
+              "Please provide a detailed description of the student's duties and responsibilities; include any additional comments:"
+            ),
+            createTextBox(employerVerification.employer2.duties || "", {
+              height: 200,
+            }),
+
+            createParagraph("4. Alignment with Competencies", { bold: true }),
+            createParagraph(
+              "Please confirm which of the following competencies the student demonstrated during their employment. Refer to the attached relevant referee testimonial and skills verification declaration."
+            ),
+
+            createParagraph("6. Employer Declaration", { bold: true }),
+            createParagraph(
+              `I, ${
+                employerVerification.employer2.supervisorName ||
+                "_______________________"
+              } (Employer/Supervisor Name), confirm that the above information is accurate and true to the best of my knowledge.`
+            ),
+
+            createSignatureLine(
+              "Signature",
+              employerVerification.employer2.supervisorName || ""
+            ),
+            createFormField("Date: ", ""),
+
+            // Page break
+            new Paragraph({
+              text: "",
+              pageBreakBefore: true,
+            }),
+
+            // REFEREE TESTIMONIAL
+            createTitle(
+              "Referee Testimonial and Skills Verification Declaration (CPC31420 Certificate III in Construction Waterproofing)"
+            ),
+            createParagraph(
+              `Verification of Skills for ${
+                refereeTestimonial.studentName || "_______________________"
+              } in CPC31420 Certificate III in Construction Waterproofing.`
+            ),
+
+            createParagraph(
+              `This document serves as an official testimonial certifying that the above-named individual, ${
+                refereeTestimonial.studentName || "_______________________"
+              }, has demonstrated the competencies and practical skills required for CPC31420 Certificate III in Construction Waterproofing as outlined below. These skills were performed and verified during their employment at ${
+                refereeTestimonial.companyName || "_______________________"
+              } over a period of ${
+                refereeTestimonial.employmentPeriod || "_______________________"
+              }.`
+            ),
+
+            createParagraph(
+              "The following list includes workplace activities regularly performed by the candidate as part of their role, aligned with the industry standards and requirements of the CPC31420 Certificate III in Construction Waterproofing. As a referee, I certify that I have directly observed or supervised the candidate in these tasks and can confirm their competency in each area."
+            ),
+
+            createParagraph(
+              "Core Competencies and Activities Performed by the Candidate:",
+              { bold: true }
+            ),
+
+            // Map through competencies with check marks for referee testimonial
+            ...competenciesList.map((competency) =>
+              createCheckboxField(
+                competency,
+                (refereeTestimonial.competencies &&
+                  refereeTestimonial.competencies[competency]) ||
+                  false
+              )
+            ),
+
+            // Declaration section
+            createParagraph(
+              "In my capacity as Referee, I declare that the information provided in this document is true and accurate to the best of my knowledge. Should further verification or clarification be required, I can provide additional details."
+            ),
+
+            createParagraph("Referee Contact Details:", { bold: true }),
+
+            createFormField("Name:", refereeTestimonial.refereeName || ""),
+            createFormField(
+              "• Qualification/Licence Details:",
+              refereeTestimonial.qualification || ""
+            ),
+            createFormField("Position:", refereeTestimonial.position || ""),
+            createFormField(
+              "Organisation:",
+              refereeTestimonial.organisation || ""
+            ),
+            createFormField(
+              "Phone Number:",
+              refereeTestimonial.phoneNumber || ""
+            ),
+            createFormField(
+              "Email Address:",
+              refereeTestimonial.emailAddress || ""
+            ),
+
+            createSignatureLine(
+              "Signature",
+              refereeTestimonial.signature || ""
+            ),
+            createFormField(
+              "Referee Name:",
+              refereeTestimonial.refereeName || ""
+            ),
+            createFormField("Date:", refereeTestimonial.date || ""),
+          ],
+        },
+      ],
     });
 
-    // 6. Upload the file to Firebase Storage
-    const storageFilePath = `rpl_forms/${userId}/${applicationId}_rpl_form.pdf`;
+    // Generate the document
+    const buffer = await Packer.toBuffer(doc);
+
+    // Write to file
+    fs.writeFileSync(tempFilePath, buffer);
+
+    // Upload the file to Firebase Storage
+    const storageFilePath = `rpl_forms/${userId}/${applicationId}_rpl_form.docx`;
     await bucket.upload(tempFilePath, {
       destination: storageFilePath,
       metadata: {
-        contentType: "application/pdf",
+        contentType:
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       },
     });
 
-    // 7. Get the download URL
+    // Get the download URL
     const [url] = await bucket.file(storageFilePath).getSignedUrl({
       action: "read",
       expires: "03-01-2500", // Long expiration for demonstration purposes
     });
 
-    // 8. Clean up the temporary file
+    // Clean up the temporary file
     fs.unlinkSync(tempFilePath);
 
-    // 9. Update the application record in Firestore with the form URL
+    // Update the application record in Firestore with the form URL
     await db.collection("applications").doc(applicationId).update({
       rplIntakeFormUrl: url,
       rplIntakeFormPath: storageFilePath,
       rplIntakeFormGeneratedAt: new Date().toISOString(),
     });
 
-    // 10. Return the file URL
+    // Return the file URL
     return {
       success: true,
       fileUrl: url,
