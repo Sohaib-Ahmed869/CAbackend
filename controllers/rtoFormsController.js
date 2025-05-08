@@ -265,7 +265,7 @@ const generateRplIntake = async (req, res) => {
     const { applicationId } = req.params;
     const { formData } = req.body;
 
-    console.log(formData)
+    console.log(formData);
     if (!applicationId) {
       return res
         .status(400)
@@ -297,10 +297,19 @@ const generateRplIntake = async (req, res) => {
       bucket
     );
 
+    // const result2 = await fillRPLIntakeForm(
+    //   formData,
+    //   applicationId,
+    //   userId,
+    //   db,
+    //   bucket
+    // );
+
     return res.status(200).json({
       success: true,
       message: "RPL Intake form generated and uploaded successfully",
       fileUrl: result.fileUrl,
+      // fileUrl2: result2.fileUrl,
     });
   } catch (error) {
     console.error("Error in generate-rpl-intake route:", error);
