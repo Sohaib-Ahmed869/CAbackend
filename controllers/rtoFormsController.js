@@ -1,4 +1,5 @@
-const { db, auth } = require("../firebase");
+const { db, auth, bucket } = require("../firebase");
+const { fillRPLIntakeForm } = require("../utils/FillIntakeForm");
 
 const submitRplIntakeForm = async (req, res) => {
   try {
@@ -197,9 +198,121 @@ const getRplIntakeFormDetails = async (req, res) => {
     });
   }
 };
+/**
+ * Route handler to retrieve enrollment form details based on application ID
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const getEnrollmentFormDetails = async (req, res) => {
+  try {
+    const { applicationId } = req.params;
+
+    // 1. Validate application exists
+    const applicationRef = db.collection("applications").doc(applicationId);
+    const applicationDoc = await applicationRef.get();
+
+    if (!applicationDoc.exists) {
+      return res.status(404).json({ error: "Application not found" });
+    }
+
+    // 2. Check if the application has an enrollment form submitted
+    const applicationData = applicationDoc.data();
+    if (
+      !applicationData.enrolmentFormSubmitted ||
+      !applicationData.enrolmentFormId
+    ) {
+      return res
+        .status(404)
+        .json({ error: "Enrollment form not found for this application" });
+    }
+
+    // 3. Fetch the form document
+    const formRef = db
+      .collection("BuildingAndConstructionForms")
+      .doc(applicationData.enrolmentFormId);
+    const formDoc = await formRef.get();
+
+    if (!formDoc.exists) {
+      return res.status(404).json({ error: "Enrollment form not found" });
+    }
+
+    // 4. Validate form type
+    const formData = formDoc.data();
+    if (formData.formType !== "Enrolment") {
+      return res.status(400).json({ error: "Form is not an enrollment form" });
+    }
+
+    // 5. Return the form data
+    res.status(200).json({
+      success: true,
+      formId: formDoc.id,
+      data: formData,
+    });
+  } catch (error) {
+    console.error("Error retrieving enrollment form:", error);
+    res.status(500).json({
+      error: "Internal server error",
+      details: error.message,
+    });
+  }
+};
+
+// Route to generate and upload filled RPL Intake form
+const generateRplIntake = async (req, res) => {
+  try {
+    const { applicationId } = req.params;
+    const { formData } = req.body;
+
+    if (!applicationId) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Application ID is required" });
+    }
+
+    if (!formData) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Form data is required" });
+    }
+
+    // Get the application document to verify it exists
+    const applicationRef = db.collection("applications").doc(applicationId);
+    const applicationDoc = await applicationRef.get();
+    const userId = applicationDoc.data().userId;
+    if (!applicationDoc.exists) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Application not found" });
+    }
+
+    // Fill the PDF form and upload to Firebase
+    const result = await fillRPLIntakeForm(
+      formData,
+      applicationId,
+      userId,
+      db,
+      bucket
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "RPL Intake form generated and uploaded successfully",
+      fileUrl: result.fileUrl,
+    });
+  } catch (error) {
+    console.error("Error in generate-rpl-intake route:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to generate RPL Intake form",
+      error: error.message,
+    });
+  }
+};
 
 module.exports = {
   submitRplIntakeForm,
+  getEnrollmentFormDetails,
   submitEnrolmentForm,
+  generateRplIntake,
   getRplIntakeFormDetails,
 };
