@@ -371,11 +371,11 @@ const GenerateRtoDocuments = async (
       documents: {
         enrollmentForm: {
           fileUrl: enrollmentResult.fileUrl,
-          fileName: enrollmentResult.fileName,
+          fileName: "EnrollmentForm",
         },
         rplIntakeForm: {
           fileUrl: rplIntakeResult.fileUrl,
-          fileName: rplIntakeResult.fileName,
+          fileName: "RPLIntakeForm",
         },
       },
     };

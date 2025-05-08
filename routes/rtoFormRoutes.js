@@ -12,6 +12,6 @@ router.post("/submit-rpl-intake-form", submitRplIntakeForm);
 router.post("/submit-enrollment-form", submitEnrolmentForm);
 router.get("/rpl-intake/:applicationId", getRplIntakeFormDetails);
 router.get("/rpl-enrollment-kit/:applicationId", getEnrollmentFormDetails);
-router.post("/generate-rpl-intake/:applicationId", generateRplIntake);
+// router.post("/generate-rpl-intake/:applicationId", generateRplIntake);
 
 module.exports = router;
