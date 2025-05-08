@@ -263,6 +263,7 @@ const generateRplIntake = async (req, res) => {
     const { applicationId } = req.params;
     const { formData } = req.body;
 
+    console.log(formData)
     if (!applicationId) {
       return res
         .status(400)
