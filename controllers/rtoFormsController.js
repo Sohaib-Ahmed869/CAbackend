@@ -265,7 +265,7 @@ const generateRplIntake = async (req, res) => {
     const { applicationId } = req.params;
     const { formData } = req.body;
 
-    console.log(formData);
+    console.log('entrollment form',formData);
     if (!applicationId) {
       return res
         .status(400)
@@ -304,6 +304,8 @@ const generateRplIntake = async (req, res) => {
     //   db,
     //   bucket
     // );
+
+    console.log("Generated file URL:", result.fileUrl);
 
     return res.status(200).json({
       success: true,
