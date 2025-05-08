@@ -1,4 +1,6 @@
 const { db, auth, bucket } = require("../firebase");
+const { generateEnrollmentPdf } = require("../utils/createEnrollmentForm");
+const { fillEnrolmentForm } = require("../utils/FillEnrollmentForm");
 const { fillRPLIntakeForm } = require("../utils/FillIntakeForm");
 
 const submitRplIntakeForm = async (req, res) => {
@@ -286,7 +288,7 @@ const generateRplIntake = async (req, res) => {
     }
 
     // Fill the PDF form and upload to Firebase
-    const result = await fillRPLIntakeForm(
+    const result = await generateEnrollmentPdf(
       formData,
       applicationId,
       userId,
