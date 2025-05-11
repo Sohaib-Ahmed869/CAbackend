@@ -22,6 +22,11 @@ const {
   Tab,
   TabStopPosition,
   TabStopType,
+  HorizontalPositionRelativeFrom,
+  HorizontalPositionAlign,
+  VerticalPositionRelativeFrom,
+  VerticalPositionAlign,
+  PageNumber,
 } = require("docx");
 
 /**
@@ -48,6 +53,9 @@ const generateEnrollmentPdf = async (
     );
 
     // Helper function to create a title paragraph
+    const createCheckboxString = (value, isChecked) => {
+      return isChecked ? "☑" : "☐";
+    };
     const createTitle = (text, level = HeadingLevel.HEADING_1) => {
       return new Paragraph({
         text: text,
@@ -275,26 +283,128 @@ const generateEnrollmentPdf = async (
     };
 
     // Create a header with image and text
+    // const createHeader = () => {
+    //   return new Header({
+    //     children: [
+    //       new Paragraph({
+    //         text: "Enrollment Form",
+    //         heading: HeadingLevel.HEADING_1,
+    //         alignment: AlignmentType.CENTER,
+    //         spacing: { before: 100, after: 100 },
+    //       }),
+    //       new Paragraph({
+    //         text: "All printed copies of this Document are considered 'Uncontrolled Copies'. Printed copies are only valid for the day printed.",
+    //         alignment: AlignmentType.CENTER,
+    //         spacing: { before: 100, after: 100 },
+    //         style: "smallText",
+    //       }),
+    //     ],
+    //   });
+    // };
     const createHeader = () => {
-      return new Header({
-        children: [
-          new Paragraph({
-            text: "Enrollment Form",
-            heading: HeadingLevel.HEADING_1,
-            alignment: AlignmentType.CENTER,
-            spacing: { before: 100, after: 100 },
-          }),
-          new Paragraph({
-            text: "All printed copies of this Document are considered 'Uncontrolled Copies'. Printed copies are only valid for the day printed.",
-            alignment: AlignmentType.CENTER,
-            spacing: { before: 100, after: 100 },
-            style: "smallText",
-          }),
-        ],
-      });
+      try {
+        // Check if logo file exists
+        const logoPath = "./utils/logo.png";
+        if (fs.existsSync(logoPath)) {
+          return new Header({
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: "Enrollment Form",
+                    bold: true,
+                    wrap: false,
+                    size: 28, // Size in half-points (28 = 14pt)
+                  }),
+                  new ImageRun({
+                    data: fs.readFileSync(logoPath),
+                    transformation: {
+                      width: 100, // Width in pixels
+                      height: 50, // Height in pixels
+                    },
+                    floating: {
+                      horizontalPosition: {
+                        relative: HorizontalPositionRelativeFrom.PAGE,
+                        align: HorizontalPositionAlign.RIGHT,
+                      },
+                      verticalPosition: {
+                        relative: VerticalPositionRelativeFrom.PAGE,
+                        align: VerticalPositionAlign.TOP,
+                      },
+                      wrap: {
+                        type: "square",
+                        side: "both",
+                      },
+                    },
+                  }),
+                ],
+                spacing: { before: 100, after: 100 },
+              }),
+              new Paragraph({
+                text: "All printed copies of this Document are considered 'Uncontrolled Copies'. Printed copies are only valid for the day printed.",
+                alignment: AlignmentType.CENTER,
+                spacing: { before: 100, after: 100 },
+                style: "smallText",
+              }),
+            ],
+          });
+        } else {
+          // Fallback if logo doesn't exist
+          return new Header({
+            children: [
+              new Paragraph({
+                text: "Enrollment Form",
+                heading: HeadingLevel.HEADING_1,
+                alignment: AlignmentType.CENTER,
+                spacing: { before: 100, after: 100 },
+              }),
+              new Paragraph({
+                text: "All printed copies of this Document are considered 'Uncontrolled Copies'. Printed copies are only valid for the day printed.",
+                alignment: AlignmentType.CENTER,
+                spacing: { before: 100, after: 100 },
+                style: "smallText",
+              }),
+            ],
+          });
+        }
+      } catch (error) {
+        console.error("Error creating header with logo:", error);
+        // Fallback to original header without logo
+        return new Header({
+          children: [
+            new Paragraph({
+              text: "Enrollment Form",
+              heading: HeadingLevel.HEADING_1,
+              alignment: AlignmentType.CENTER,
+              spacing: { before: 100, after: 100 },
+            }),
+            new Paragraph({
+              text: "All printed copies of this Document are considered 'Uncontrolled Copies'. Printed copies are only valid for the day printed.",
+              alignment: AlignmentType.CENTER,
+              spacing: { before: 100, after: 100 },
+              style: "smallText",
+            }),
+          ],
+        });
+      }
     };
-
     // Create a footer with page numbers
+    // const createFooter = () => {
+    //   return new Footer({
+    //     children: [
+    //       new Paragraph({
+    //         alignment: AlignmentType.CENTER,
+    //         children: [
+    //           new TextRun("Page "),
+    //           new TextRun({
+    //             children: ["PAGE", " of ", "NUMPAGES"],
+    //           }),
+    //         ],
+    //       }),
+    //     ],
+    //   });
+    // };
+    // Correct implementation for page numbering in docx.js
     const createFooter = () => {
       return new Footer({
         children: [
@@ -303,7 +413,11 @@ const generateEnrollmentPdf = async (
             children: [
               new TextRun("Page "),
               new TextRun({
-                children: ["PAGE", " of ", "NUMPAGES"],
+                children: [PageNumber.CURRENT],
+              }),
+              new TextRun(" of "),
+              new TextRun({
+                children: [PageNumber.TOTAL_PAGES],
               }),
             ],
           }),
@@ -1047,10 +1161,10 @@ const generateEnrollmentPdf = async (
               spacing: { before: 100, after: 20 },
             }),
 
-            // Qualification table - left side
+            // Combined qualifications table - using a single table with two sections
             new Table({
               width: {
-                size: 50,
+                size: 100,
                 type: WidthType.PERCENTAGE,
               },
               borders: {
@@ -1062,22 +1176,48 @@ const generateEnrollmentPdf = async (
                 insideVertical: { style: BorderStyle.SINGLE, size: 1 },
               },
               rows: [
+                // Header row
                 new TableRow({
                   children: [
                     new TableCell({
                       children: [new Paragraph({ text: "A E I" })],
+                      width: { size: 15, type: WidthType.PERCENTAGE },
                     }),
                     new TableCell({
                       children: [new Paragraph({ text: "" })],
+                      width: { size: 35, type: WidthType.PERCENTAGE },
+                    }),
+                    new TableCell({
+                      children: [new Paragraph({ text: "A E I" })],
+                      width: { size: 15, type: WidthType.PERCENTAGE },
+                    }),
+                    new TableCell({
+                      children: [new Paragraph({ text: "" })],
+                      width: { size: 35, type: WidthType.PERCENTAGE },
                     }),
                   ],
                 }),
+                // Row 1
                 new TableRow({
                   children: [
                     new TableCell({
                       children: [
                         new Paragraph({
-                          text: "☐ ☐ ☐",
+                          text:
+                            createCheckboxString(
+                              "A",
+                              qualifications.bachelorDegree === "A"
+                            ) +
+                            " " +
+                            createCheckboxString(
+                              "E",
+                              qualifications.bachelorDegree === "E"
+                            ) +
+                            " " +
+                            createCheckboxString(
+                              "I",
+                              qualifications.bachelorDegree === "I"
+                            ),
                         }),
                       ],
                     }),
@@ -1088,96 +1228,24 @@ const generateEnrollmentPdf = async (
                         }),
                       ],
                     }),
-                  ],
-                }),
-                new TableRow({
-                  children: [
                     new TableCell({
                       children: [
                         new Paragraph({
-                          text: "☐ ☐ ☐",
-                        }),
-                      ],
-                    }),
-                    new TableCell({
-                      children: [
-                        new Paragraph({
-                          text: "Advanced Diploma or Associate Degree",
-                        }),
-                      ],
-                    }),
-                  ],
-                }),
-                new TableRow({
-                  children: [
-                    new TableCell({
-                      children: [
-                        new Paragraph({
-                          text: "☐ ☐ ☐",
-                        }),
-                      ],
-                    }),
-                    new TableCell({
-                      children: [
-                        new Paragraph({
-                          text: "Diploma or Associate Diploma",
-                        }),
-                      ],
-                    }),
-                  ],
-                }),
-                new TableRow({
-                  children: [
-                    new TableCell({
-                      children: [
-                        new Paragraph({
-                          text: "☐ ☐ ☐",
-                        }),
-                      ],
-                    }),
-                    new TableCell({
-                      children: [
-                        new Paragraph({
-                          text: "Certificate IV or Advanced Cert/Technician",
-                        }),
-                      ],
-                    }),
-                  ],
-                }),
-              ],
-            }),
-
-            // Qualification table - right side
-            new Table({
-              width: {
-                size: 50,
-                type: WidthType.PERCENTAGE,
-              },
-              borders: {
-                top: { style: BorderStyle.SINGLE, size: 1 },
-                bottom: { style: BorderStyle.SINGLE, size: 1 },
-                left: { style: BorderStyle.SINGLE, size: 1 },
-                right: { style: BorderStyle.SINGLE, size: 1 },
-                insideHorizontal: { style: BorderStyle.SINGLE, size: 1 },
-                insideVertical: { style: BorderStyle.SINGLE, size: 1 },
-              },
-              rows: [
-                new TableRow({
-                  children: [
-                    new TableCell({
-                      children: [new Paragraph({ text: "A E I" })],
-                    }),
-                    new TableCell({
-                      children: [new Paragraph({ text: "" })],
-                    }),
-                  ],
-                }),
-                new TableRow({
-                  children: [
-                    new TableCell({
-                      children: [
-                        new Paragraph({
-                          text: "☐ ☐ ☐",
+                          text:
+                            createCheckboxString(
+                              "A",
+                              qualifications.certificateIII === "A"
+                            ) +
+                            " " +
+                            createCheckboxString(
+                              "E",
+                              qualifications.certificateIII === "E"
+                            ) +
+                            " " +
+                            createCheckboxString(
+                              "I",
+                              qualifications.certificateIII === "I"
+                            ),
                         }),
                       ],
                     }),
@@ -1190,12 +1258,55 @@ const generateEnrollmentPdf = async (
                     }),
                   ],
                 }),
+                // Row 2
                 new TableRow({
                   children: [
                     new TableCell({
                       children: [
                         new Paragraph({
-                          text: "☐ ☐ ☐",
+                          text:
+                            createCheckboxString(
+                              "A",
+                              qualifications.advancedDiploma === "A"
+                            ) +
+                            " " +
+                            createCheckboxString(
+                              "E",
+                              qualifications.advancedDiploma === "E"
+                            ) +
+                            " " +
+                            createCheckboxString(
+                              "I",
+                              qualifications.advancedDiploma === "I"
+                            ),
+                        }),
+                      ],
+                    }),
+                    new TableCell({
+                      children: [
+                        new Paragraph({
+                          text: "Advanced Diploma or Associate Degree",
+                        }),
+                      ],
+                    }),
+                    new TableCell({
+                      children: [
+                        new Paragraph({
+                          text:
+                            createCheckboxString(
+                              "A",
+                              qualifications.certificateII === "A"
+                            ) +
+                            " " +
+                            createCheckboxString(
+                              "E",
+                              qualifications.certificateII === "E"
+                            ) +
+                            " " +
+                            createCheckboxString(
+                              "I",
+                              qualifications.certificateII === "I"
+                            ),
                         }),
                       ],
                     }),
@@ -1208,12 +1319,55 @@ const generateEnrollmentPdf = async (
                     }),
                   ],
                 }),
+                // Row 3
                 new TableRow({
                   children: [
                     new TableCell({
                       children: [
                         new Paragraph({
-                          text: "☐ ☐ ☐",
+                          text:
+                            createCheckboxString(
+                              "A",
+                              qualifications.diploma === "A"
+                            ) +
+                            " " +
+                            createCheckboxString(
+                              "E",
+                              qualifications.diploma === "E"
+                            ) +
+                            " " +
+                            createCheckboxString(
+                              "I",
+                              qualifications.diploma === "I"
+                            ),
+                        }),
+                      ],
+                    }),
+                    new TableCell({
+                      children: [
+                        new Paragraph({
+                          text: "Diploma or Associate Diploma",
+                        }),
+                      ],
+                    }),
+                    new TableCell({
+                      children: [
+                        new Paragraph({
+                          text:
+                            createCheckboxString(
+                              "A",
+                              qualifications.certificateI === "A"
+                            ) +
+                            " " +
+                            createCheckboxString(
+                              "E",
+                              qualifications.certificateI === "E"
+                            ) +
+                            " " +
+                            createCheckboxString(
+                              "I",
+                              qualifications.certificateI === "I"
+                            ),
                         }),
                       ],
                     }),
@@ -1226,12 +1380,55 @@ const generateEnrollmentPdf = async (
                     }),
                   ],
                 }),
+                // Row 4
                 new TableRow({
                   children: [
                     new TableCell({
                       children: [
                         new Paragraph({
-                          text: "☐ ☐ ☐",
+                          text:
+                            createCheckboxString(
+                              "A",
+                              qualifications.certificateIV === "A"
+                            ) +
+                            " " +
+                            createCheckboxString(
+                              "E",
+                              qualifications.certificateIV === "E"
+                            ) +
+                            " " +
+                            createCheckboxString(
+                              "I",
+                              qualifications.certificateIV === "I"
+                            ),
+                        }),
+                      ],
+                    }),
+                    new TableCell({
+                      children: [
+                        new Paragraph({
+                          text: "Certificate IV or Advanced Cert/Technician",
+                        }),
+                      ],
+                    }),
+                    new TableCell({
+                      children: [
+                        new Paragraph({
+                          text:
+                            createCheckboxString(
+                              "A",
+                              qualifications.other === "A"
+                            ) +
+                            " " +
+                            createCheckboxString(
+                              "E",
+                              qualifications.other === "E"
+                            ) +
+                            " " +
+                            createCheckboxString(
+                              "I",
+                              qualifications.other === "I"
+                            ),
                         }),
                       ],
                     }),
@@ -1254,6 +1451,10 @@ const generateEnrollmentPdf = async (
               "*To determine 'Australian Equivalent' qualifications, please refer to the Overseas Qualifications Unit (OQU)."
             ),
 
+            // Helper function to create checkbox strings
+            // function createCheckboxString(value, isChecked) {
+            //   return isChecked ? "☑" : "☐";
+            // }
             // SECTION 16 - STUDY REASON
             createHeading("16. Study Reason", HeadingLevel.HEADING_2),
 

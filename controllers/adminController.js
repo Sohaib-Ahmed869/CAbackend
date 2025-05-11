@@ -3038,6 +3038,12 @@ function getRequiredDocuments(industry, qualification) {
         "RPL Intake CPC31420 Certificate III in Construction Waterproofing",
         "RPL Enrolment Kit",
       ],
+      "cpc30220 certificate iii in carpentry": [
+        "RPL Intake CPC30220 Certificate III in Carpentry",
+        "RPL Enrolment Kit",
+        "RPL Self Assessment kit",
+        "RPL Application Form",
+      ],
       // Add other construction qualifications as needed
     },
 

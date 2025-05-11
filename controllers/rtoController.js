@@ -653,7 +653,33 @@ const sendApplicationToRto = async (req, res) => {
     const folderName = `Application_${application.applicationId}`;
     let folderInfo;
     let documentLinks = [];
+    const driveUploadDocuments = [
+      {
+        name: "EnrollmentForm",
+        fileUrl:
+          "https://firebasestorage.googleapis.com/v0/b/testca-e3e5e.firebasestorage.app/o/qat7MrFzrpTnQo0oYs0ZV7JsqWu2%2Fx7fuWC0gSPn1N9eeBQj3%2FdriversLicense%2F5f6ac081-f432-4033-9e0d-d7ad2e583f4a_07-03-25.png?alt=media&token=dd8e5972-90d1-48d6-bb35-c30b8d1cd316",
 
+        type: "Enrollment Form",
+      },
+      {
+        name: "RPL_Intake_Form",
+        fileUrl:
+          "https://firebasestorage.googleapis.com/v0/b/testca-e3e5e.firebasestorage.app/o/RPL%20Intake%20CPC30220%20Certificate%20III%20in%20Carpentry%20(1).pdf?alt=media&token=e7f16554-cfc3-4bfc-a8d9-9ea7c2ae5942",
+        type: "RPL Intake Form",
+      },
+      {
+        name: "Application_Form",
+        fileUrl:
+          "https://firebasestorage.googleapis.com/v0/b/testca-e3e5e.firebasestorage.app/o/Step%201-RPL%20application%20form%20-%20CPC30220%20-%20Certificate%20III%20in%20Carpentry.pdf?alt=media&token=e7a9c86f-9556-4653-9eba-65c911ca63c6",
+        type: "Application Form",
+      },
+      {
+        name: "Assessment_Form",
+        fileUrl:
+          "https://firebasestorage.googleapis.com/v0/b/testca-e3e5e.firebasestorage.app/o/Step%202%20-%20RPL%20Self-Assessment%20Information%20Kit%20-%20CPC30220%20-%20Certificate%20III%20in%20Carpentry-1.pdf?alt=media&token=4920fd65-f674-4b51-a32a-253e3e1f0649",
+        type: "Assessment Form",
+      },
+    ];
     // Array for storing generated document URLs
     let generatedDocuments = [];
 
@@ -733,8 +759,31 @@ const sendApplicationToRto = async (req, res) => {
       }
 
       // Upload generated documents to the same Drive folder
-      if (generatedDocuments.length > 0) {
-        for (const docData of generatedDocuments) {
+      // if (generatedDocuments.length > 0) {
+      //   for (const docData of generatedDocuments) {
+      //     // Extract a suitable filename from the generated document
+      //     const filePathParts = docData.name.split("/");
+      //     const fileName = filePathParts[filePathParts.length - 1];
+
+      //     // Upload generated document to Google Drive
+      //     const fileInfo = await uploadFileToDrive(
+      //       docData.fileUrl,
+      //       fileName,
+      //       folderInfo.folderId
+      //     );
+
+      //     console.log(`✅ Uploaded generated document to Drive: ${fileName}`);
+
+      //     // Add the Drive links to documentLinks array for the email
+      //     documentLinks.push({
+      //       name: fileName,
+      //       viewLink: fileInfo.viewLink,
+      //       downloadLink: fileInfo.downloadLink,
+      //       type: docData.type,
+      //     });
+      //   }
+      if (driveUploadDocuments.length > 0) {
+        for (const docData of driveUploadDocuments) {
           // Extract a suitable filename from the generated document
           const filePathParts = docData.name.split("/");
           const fileName = filePathParts[filePathParts.length - 1];

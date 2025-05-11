@@ -384,8 +384,71 @@ const GenerateRtoDocuments = async (
     throw error; // Propagate the error to be handled by the calling function
   }
 };
+// Backend controller to mark application as submitted
+const markApplicationSubmitted = async (req, res) => {
+  try {
+    const { applicationId } = req.body;
+
+    // 1. Validate application exists
+    const applicationRef = db.collection("applications").doc(applicationId);
+    const applicationDoc = await applicationRef.get();
+
+    if (!applicationDoc.exists) {
+      return res.status(404).json({ error: "Application not found" });
+    }
+
+    // 2. Update application document with ApplicationFormSubmitted flag only
+    await applicationRef.update({
+      ApplicationFormSubmitted: true,
+    });
+
+    // 3. Return success response
+    res.status(200).json({
+      message: "Application marked as submitted successfully",
+    });
+  } catch (error) {
+    console.error("Error marking application as submitted:", error);
+    res.status(500).json({
+      error: "Internal server error",
+      details: error.message,
+    });
+  }
+};
+
+const markAssessmentSubmitted = async (req, res) => {
+  try {
+    const { applicationId } = req.body;
+
+    // 1. Validate application exists
+    const applicationRef = db.collection("applications").doc(applicationId);
+    const applicationDoc = await applicationRef.get();
+
+    if (!applicationDoc.exists) {
+      return res.status(404).json({ error: "Application not found" });
+    }
+
+    // 2. Update application document with ApplicationFormSubmitted flag only
+    await applicationRef.update({
+      assessmentFormSubmitted: true,
+    });
+
+    // 3. Return success response
+    res.status(200).json({
+      message: "Application marked as submitted successfully",
+    });
+  } catch (error) {
+    console.error("Error marking application as submitted:", error);
+    res.status(500).json({
+      error: "Internal server error",
+      details: error.message,
+    });
+  }
+};
+
 module.exports = {
+  markApplicationSubmitted,
   submitRplIntakeForm,
+  markAssessmentSubmitted,
   getEnrollmentFormDetails,
   submitEnrolmentForm,
   GenerateRtoDocuments,
