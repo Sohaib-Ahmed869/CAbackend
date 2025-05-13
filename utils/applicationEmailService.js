@@ -608,7 +608,7 @@ const handlePaymentEmailNotification = async (
   if (emailSubject && emailBody) {
     const fullEmailBody = emailHeader + emailBody + emailFooter;
     await sendEmail(email, fullEmailBody, emailSubject);
-    const adminEmail = "ceo@certifiedaustralia.com";
+    const adminEmail = "ceo@certifiedaustralia.com.au";
     await sendEmail(adminEmail, fullEmailBody, "Partial Payment Received");
     console.log(`Payment notification email sent to ${email}`);
     return { success: true, emailType: "payment" };
