@@ -13,8 +13,11 @@ const {
   addMultipleIndustries,
   addMultipleCertifications,
   updateCertificationPrice,
+  exportIndustriesAndCertifications
 } = require("../controllers/industryController");
 
+// Route to export industries and certifications
+router.get("/export", exportIndustriesAndCertifications);
 router.delete("/certification", deleteCertification);
 router.post("/create", createIndustry);
 router.post("/create-multiple", addMultipleIndustries);

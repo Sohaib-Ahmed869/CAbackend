@@ -199,3 +199,68 @@ exports.updateCertificationPrice = async (req, res) => {
     res.status(500).send({ error: error.message });
   }
 };
+
+/**
+ * Exports all industries and their certification names as a simplified JSON
+ *
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Object} JSON response with industries and their certification names
+ */
+exports.exportIndustriesAndCertifications = async (req, res) => {
+  try {
+    console.log("Exporting industries and certification names...");
+    // Fetch all industries
+    const industriesSnapshot = await db.collection("industries").get();
+
+    if (industriesSnapshot.empty) {
+      return res.status(404).json({ message: "No industries found" });
+    }
+
+    const result = [];
+
+    // Process each industry
+    for (const industryDoc of industriesSnapshot.docs) {
+      const industryData = industryDoc.data();
+      const industryId = industryDoc.id;
+
+      // Get all certifications for this industry
+      const certificationsSnapshot = await db
+        .collection("certifications")
+        .where("industryId", "==", industryId)
+        .get();
+
+      // Format industry data with only certification names
+      const industryEntry = {
+        id: industryId,
+        name: industryData.name,
+        certifications: []
+      };
+
+      // Add only certification names to the industry
+      certificationsSnapshot.forEach((certDoc) => {
+        const certData = certDoc.data();
+        // Push the qualification (certification name) to the array
+        if (certData.qualification) {
+          industryEntry.certifications.push({
+            id: certDoc.id,
+            name: certData.qualification
+          });
+        }
+      });
+
+      result.push(industryEntry);
+    }
+
+    return res.status(200).json({
+      message: "Industries and certification names exported successfully",
+      data: result
+    });
+  } catch (error) {
+    console.error("Error exporting industries and certification names:", error);
+    return res.status(500).json({
+      message: "Failed to export industries and certification names",
+      error: error.message
+    });
+  }
+};
