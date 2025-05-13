@@ -2629,8 +2629,13 @@ const getLeadsStats = async (req, res) => {
       getAgentsFromDB(),
       getApplicationsFromDB(filter),
     ]);
+
+    //get all applications that have been assigned to the agent
+    const assignedApplications = applications.filter(
+      (app) => app.assignedAdmin !== null && app.assignedAdmin !== undefined
+    );
     const stats = agents.map((agent) => {
-      const agentApps = applications.filter(
+      const agentApps = assignedApplications.filter(
         (app) => app.assignedAdmin === agent.name
       );
 
@@ -2676,8 +2681,13 @@ const getFinanceStats = async (req, res) => {
       getAgentsFromDB(),
       getApplicationsFromDB(filter),
     ]);
+
+    const assignedApplications = applications.filter(
+      (app) => app.assignedAdmin !== null && app.assignedAdmin !== undefined
+    );
+    
     const stats = agents.map((agent) => {
-      const agentApps = applications.filter(
+      const agentApps = assignedApplications.filter(
         (app) => app.assignedAdmin === agent.name
       );
 
@@ -2702,6 +2712,8 @@ const getFinanceStats = async (req, res) => {
         ),
       };
     });
+
+    console.log("Finance Stats:", stats);
 
     res.json(stats);
   } catch (error) {

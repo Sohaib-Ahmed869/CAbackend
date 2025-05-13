@@ -483,7 +483,7 @@ const registerUser = async (req, res) => {
     //   const adminEmail = adminData.email;
     //   const loginToken = auth.createCustomToken(adminUserId);
     //   const adminUrl = `${process.env.CLIENT_URL}/admin?token=${loginToken}`;
-    const adminEmail = "sohaibsipra868@gmail.com";
+    const adminEmail = "certified@calcite.live";
     const emailAdmin2 = "sohaibsipra868@gmail.com";
 
     const adminEmailBody = `
@@ -778,7 +778,7 @@ For any inquiries or assistance, please feel free to <a href="mailto:info@certif
     </p>
       `;
       const subject = "New User Registration";
-      if (adminEmail !== "sohaibsipra868@gmail.com") {
+      if (adminEmail !== "ceo@certifiedaustralia.com.au") {
         await sendEmail(adminEmail, body_email, subject);
       }
     });
