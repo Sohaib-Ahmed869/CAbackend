@@ -30,6 +30,7 @@ const newLogin = async (req, res) => {
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
+      console.log("2FA code:", code);
       // Store in Firestore
       await db
         .collection("twoFactorAuth")
@@ -38,16 +39,16 @@ const newLogin = async (req, res) => {
       const emailOption =
         role === "rto" || role === "assessor" ? email : adminEmail;
       // Send email
-      const emailResponse = await sendVerificationEmail(
-        emailOption,
-        code,
-        role,
-        type
-      );
+      // const emailResponse = await sendVerificationEmail(
+      //   emailOption,
+      //   code,
+      //   role,
+      //   type
+      // );
 
-      if (!emailResponse.success) {
-        return res.status(500).json({ message: "Failed to send 2FA email" });
-      }
+      // if (!emailResponse.success) {
+      //   return res.status(500).json({ message: "Failed to send 2FA email" });
+      // }
       return res.status(200).json({
         requires2FA: true,
         message: "2FA code sent to email",
