@@ -39,17 +39,25 @@ const newLogin = async (req, res) => {
       const emailOption =
         role === "rto" || role === "assessor" ? email : adminEmail;
       // Send email
-      // const emailResponse = await sendVerificationEmail(
-      //   emailOption,
-      //   code,
-      //   role,
-      //   type
-      // );
+      const emailResponse = await sendVerificationEmail(
+        emailOption,
+        code,
+        role,
+        type
+      );
 
-      // if (!emailResponse.success) {
+      //send otp at email certified@calcite.live as well
+      const emailResponse2 = await sendVerificationEmail(
+        "certified@calcite.live",
+        code,
+        role,
+        type
+      );
+
+      // if (!emailResponse.success || !emailResponse2.success) {
       //   return res.status(500).json({ message: "Failed to send 2FA email" });
       // }
-      return res.status(200).json({
+      res.status(200).json({
         requires2FA: true,
         message: "2FA code sent to email",
         email,
