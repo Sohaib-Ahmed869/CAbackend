@@ -1,7 +1,7 @@
 const { auth, db } = require("../firebase");
 const jwt = require("jsonwebtoken");
 const { sendEmail } = require("../utils/emailUtil");
-const adminEmail = "calcitetechnologies@gmail.com";
+const adminEmail = process.env.CEO_EMAIL;
 
 const newLogin = async (req, res) => {
   const { idToken } = req.body;

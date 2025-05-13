@@ -11,7 +11,7 @@ const { Client, Environment } = require("square");
 const { Application } = require("twilio/lib/twiml/VoiceResponse");
 const squareClient = new Client({
   accessToken: process.env.SQUARE_ACCESS_TOKEN,
-  environment: Environment.Sandbox, // or Environment.Sandbox for testing
+  environment: Environment.Production, // or Environment.Sandbox for testing
 });
 const { TIME_ZONES } = require("../utils/timeZoneConstants");
 // Update Application Status
@@ -614,129 +614,6 @@ const handleSquareWebhook = async (req, res) => {
   }
 };
 
-// Mark application as paid (used after webhook confirmation)
-// const markApplicationAsPaid = async (req, res, isInternal = false) => {
-//   const { applicationId } = req.params;
-
-//   try {
-//     const applicationRef = db.collection("applications").doc(applicationId);
-//     const applicationDoc = await applicationRef.get();
-
-//     if (!applicationDoc.exists) {
-//       if (isInternal) return false;
-//       return res.status(404).json({ message: "Application not found" });
-//     }
-
-//     const applicationData = applicationDoc.data();
-//     let autoDebitPayment = false;
-//     if (
-//       applicationData.autoDebit?.enabled &&
-//       applicationData.autoDebit.status === "SCHEDULED"
-//     ) {
-//       autoDebitPayment = true;
-//       console.log("autoDebitPayment", autoDebitPayment);
-//     }
-
-//     // Update payment status based on payment scheme
-//     if (
-//       applicationData.partialScheme === true &&
-//       applicationData.paid === true
-//     ) {
-//       await applicationRef.update({
-//         full_paid: true,
-//         amount_paid: applicationData.price,
-//         payment2Date: new Date().toISOString(),
-//       });
-
-//       //update the application status
-//       await applicationRef.update({
-//         currentStatus: "Sent to Assessor",
-//         status: [
-//           ...applicationDoc.data().status,
-//           {
-//             statusname: "Sent to Assessor",
-//             time: new Date().toISOString(),
-//           },
-//         ],
-//       });
-//       if (autoDebitPayment) {
-//         console.log("updating auto debit for payment 2");
-//         if (applicationData.autoDebit.selectedPayment === "payment2") {
-//           await applicationRef.update({
-//             "autoDebit.status": "MANUALLY_PAID",
-//             "autoDebit.enabled": false,
-//             "autoDebit.amountDue": 0,
-//             "autoDebit.updatedAt": new Date().toISOString(),
-//           });
-//         }
-//       }
-//     } else if (
-//       applicationData.partialScheme === true &&
-//       applicationData.paid === false
-//     ) {
-//       await applicationRef.update({
-//         payment1Date: new Date().toISOString(),
-//         paid: true,
-//         full_paid: false,
-//         payment1Date: new Date().toISOString(),
-//         amount_paid: applicationData.payment1,
-//       });
-//       if (autoDebitPayment) {
-//         if (applicationData.autoDebit.selectedPayment === "payment1") {
-//           console.log("updating auto debit for payment 1");
-//           await applicationRef.update({
-//             "autoDebit.status": "MANUALLY_PAID",
-//             "autoDebit.enabled": false,
-//             "autoDebit.amountDue": 0,
-//             "autoDebit.updatedAt": new Date().toISOString(),
-//           });
-//         }
-//       }
-//     } else {
-//       await applicationRef.update({
-//         paid: true,
-//         full_paid: true,
-//         amount_paid: applicationData.price,
-//         fullPaymentDate: new Date().toISOString(),
-//       });
-//       await applicationRef.update({
-//         currentStatus: "Sent to Assessor",
-//         status: [
-//           ...applicationDoc.data().status,
-//           {
-//             statusname: "Sent to Assessor",
-//             time: new Date().toISOString(),
-//           },
-//         ],
-//       });
-//       if (autoDebitPayment) {
-//         console.log("updating auto debit for full payment");
-
-//         if (applicationData.autoDebit.selectedPayment === "fullPayment") {
-//           await applicationRef.update({
-//             "autoDebit.status": "ManuallyPaid",
-//             "autoDebit.enabled": false,
-//             "autoDebit.amountDue": 0,
-//             "autoDebit.updatedAt": new Date().toISOString(),
-//           });
-//         }
-//       }
-//     }
-
-//     // Use the comprehensive email service
-//     await checkApplicationStatusAndSendEmails(applicationId, "payment_made");
-
-//     if (!isInternal) {
-//       return res.status(200).json({ message: "Application marked as paid" });
-//     }
-//     return true;
-//   } catch (error) {
-//     console.error("Error marking application as paid:", error);
-//     if (isInternal) return false;
-//     return res.status(500).json({ message: error.message });
-//   }
-// };
-
 const markApplicationAsPaid = async (req, res, isInternal = false) => {
   const { applicationId } = req.params;
 
@@ -879,8 +756,7 @@ async function sendPaymentConfirmationEmails(applicationId) {
   //   const adminUrl = `${process.env.CLIENT_URL}/admin?token=${adminToken}`;
 
   const discount = applicationData.discount || 0;
-  // const emailaDMIN = "sohaibsipra868@gmail.com";
-  // const emailAdmin2 = "sohaibahmedsipra@gmail.com";
+
   const emailaDMIN = "sohaibahmedsipra@gmail.com";
   const emailAdmin2 = "sohaibsipra868@gmail.com";
   //get sohaibahmedsipra@gmail.com id
@@ -1594,7 +1470,7 @@ const processPayment = async (req, res) => {
     // Process payment with actual sourceId
     const payment = await squareClient.paymentsApi.createPayment({
       // sourceId: sourceId, //
-      sourceId: "cnon:card-nonce-ok",
+      sourceId: sourceId,
       idempotencyKey: `${applicationId}-${Date.now()}`,
       amountMoney: {
         amount: amountInCents,

@@ -1,7 +1,7 @@
 const TIME_ZONES = {
-  DEFAULT: "Asia/Karachi",
+  DEFAULT: "Australia/Sydney",
   SERVER: "UTC",
-  CLIENT: "Asia/Karachi",
+  CLIENT: "Australia/Sydney",
 };
 
 module.exports = { TIME_ZONES };
