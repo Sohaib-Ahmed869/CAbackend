@@ -443,7 +443,7 @@ const handlePaymentEmailNotification = async (
 
       // Notify RTO team
       await notifyRTOTeam(applicationId, userData);
-      await notifyAdminAboutFullPayment(applicationId, status, userData); // <-- Add this
+      //await notifyAdminAboutFullPayment(applicationId, status, userData); // <-- Add this
     } else if (status.sifCompleted && !status.docsCompleted) {
       // SIF complete, payment complete, but docs pending
       emailSubject =
@@ -495,7 +495,7 @@ const handlePaymentEmailNotification = async (
         
         <p>Warm regards,<br>The Certified Australia Team</p>
       `;
-      await notifyAdminAboutFullPayment(applicationId, status, userData); // <-- Add this
+      //await notifyAdminAboutFullPayment(applicationId, status, userData); // <-- Add this
     } else if (!status.sifCompleted) {
       // Payment complete but SIF pending
       emailSubject = "Payment Received - Complete Your Application";
@@ -600,7 +600,7 @@ const handlePaymentEmailNotification = async (
     `;
 
     // Always notify admin about partial payments
-    await notifyAdminAboutPartialPayment(applicationId, status, userData);
+  //  await notifyAdminAboutPartialPayment(applicationId, status, userData);
   }
 
   // Send the email
