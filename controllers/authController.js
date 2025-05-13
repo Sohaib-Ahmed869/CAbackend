@@ -5,7 +5,7 @@ const adminEmail = process.env.CEO_EMAIL;
 
 const newLogin = async (req, res) => {
   const { idToken } = req.body;
-
+  console.log("idToken", idToken);
   try {
     // Verify Firebase ID token
     const decodedToken = await auth.verifyIdToken(idToken);
