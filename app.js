@@ -217,7 +217,7 @@ app.get("/", (req, res) => {
 });
 
 // Start the reminder scheduler
-startReminderScheduler();
+// startReminderScheduler();
 
 // Start server
 app.listen(PORT, () => {
