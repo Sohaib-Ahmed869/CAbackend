@@ -11,7 +11,7 @@ const { Client, Environment } = require("square");
 const { Application } = require("twilio/lib/twiml/VoiceResponse");
 const squareClient = new Client({
   accessToken: process.env.SQUARE_ACCESS_TOKEN,
-  environment: Environment.Production, // or Environment.Sandbox for testing
+  environment: Environment.Sandbox, // or Environment.Sandbox for testing
 });
 const { TIME_ZONES } = require("../utils/timeZoneConstants");
 // Update Application Status
