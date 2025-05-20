@@ -45,10 +45,7 @@ app.use(bodyParser.json());
 app.use(
   cors({
     // Configure your origins based on environment
-    origin:
-      process.env.NODE_ENV === "production"
-        ? "https://portal.certifiedaustralia.com.au"
-        : ["https://ca-silk.vercel.app", "http://localhost:5173"],
+    origin: ["https://ca-silk.vercel.app", "http://localhost:5173"],
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
