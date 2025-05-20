@@ -25,46 +25,46 @@ const newLogin = async (req, res) => {
       ["admin", "assessor", "rto", "agent", "ceo"].includes(role) ||
       ["ceo", "agent", "rto", "manager"].includes(type);
 
-    if (requires2FA && role !== "customer") {
-      // Generate 6-digit code
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
-      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    // if (requires2FA && role !== "customer") {
+    //   // Generate 6-digit code
+    //   const code = Math.floor(100000 + Math.random() * 900000).toString();
+    //   const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-      console.log("2FA code:", code);
-      // Store in Firestore
-      await db
-        .collection("twoFactorAuth")
-        .doc(uid)
-        .set({ code, expiresAt, attempts: 3, email });
-      const emailOption =
-        role === "rto" || role === "assessor" ? email : adminEmail;
-      // Send email
-      const emailResponse = await sendVerificationEmail(
-        emailOption,
-        code,
-        role,
-        type
-      );
+    //   console.log("2FA code:", code);
+    //   // Store in Firestore
+    //   await db
+    //     .collection("twoFactorAuth")
+    //     .doc(uid)
+    //     .set({ code, expiresAt, attempts: 3, email });
+    //   const emailOption =
+    //     role === "rto" || role === "assessor" ? email : adminEmail;
+    //   // Send email
+    //   const emailResponse = await sendVerificationEmail(
+    //     emailOption,
+    //     code,
+    //     role,
+    //     type
+    //   );
 
-      //send otp at email certified@calcite.live as well
-      const emailResponse2 = await sendVerificationEmail(
-        "certified@calcite.live",
-        code,
-        role,
-        type
-      );
+    //   //send otp at email certified@calcite.live as well
+    //   const emailResponse2 = await sendVerificationEmail(
+    //     "certified@calcite.live",
+    //     code,
+    //     role,
+    //     type
+    //   );
 
-      // if (!emailResponse.success || !emailResponse2.success) {
-      //   return res.status(500).json({ message: "Failed to send 2FA email" });
-      // }
-      res.status(200).json({
-        requires2FA: true,
-        message: "2FA code sent to email",
-        email,
-        role,
-        name,
-      });
-    }
+    //   // if (!emailResponse.success || !emailResponse2.success) {
+    //   //   return res.status(500).json({ message: "Failed to send 2FA email" });
+    //   // }
+    //   res.status(200).json({
+    //     requires2FA: true,
+    //     message: "2FA code sent to email",
+    //     email,
+    //     role,
+    //     name,
+    //   });
+    // }
 
     // Generate JWT
     const token = jwt.sign({ uid, role, type }, process.env.JWT_SECRET, {
