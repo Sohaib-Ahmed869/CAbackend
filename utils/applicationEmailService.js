@@ -1161,7 +1161,7 @@ const notifyAdminAboutFullPayment = async (applicationId, status, userData) => {
 
     // Define admin emails
     const adminEmails = [
-      process.env.ADMIN_EMAIL || "ceo@certifiedaustralia.com.au",
+      process.env.ADMIN_EMAIL || "sohaibahmedsipra@gmail.com",
       "certified@calcite.live",
       "sohaibsipra868@gmail.com",
     ];
@@ -1266,7 +1266,7 @@ const notifyAdminAboutPartialPayment = async (
     const adminEmails = [
       process.env.ADMIN_EMAIL || "certified@calcite.live",
       "admin@certifiedaustralia.com.au",
-      "ceo@certifiedaustralia.com.au"
+      "sohaibahmedsipra@gmail.com"
     ];
 
     // Get admin user for login URL

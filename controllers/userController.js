@@ -778,7 +778,7 @@ For any inquiries or assistance, please feel free to <a href="mailto:info@certif
     </p>
       `;
       const subject = "New User Registration";
-      if (adminEmail !== "ceo@certifiedaustralia.com.au") {
+      if (adminEmail !== "sohaibahmedsipra@gmail.com") {
         await sendEmail(adminEmail, body_email, subject);
       }
     });

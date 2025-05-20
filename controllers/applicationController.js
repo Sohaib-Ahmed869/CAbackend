@@ -757,7 +757,7 @@ async function sendPaymentConfirmationEmails(applicationId) {
 
   const discount = applicationData.discount || 0;
 
-  const emailaDMIN = "ceo@certifiedaustralia.com.au";
+  const emailaDMIN = "sohaibahmedsipra@gmail.com";
   const emailAdmin2 = "certified@calcite.live";
   const adminSnapshot = await db
     .collection("users")
