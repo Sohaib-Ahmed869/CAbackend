@@ -1469,7 +1469,7 @@ const processPayment = async (req, res) => {
     // Process payment with actual sourceId
     const payment = await squareClient.paymentsApi.createPayment({
       // sourceId: sourceId, //
-      sourceId: sourceId,
+      sourceId: "cnon-ok",
       idempotencyKey: `${applicationId}-${Date.now()}`,
       amountMoney: {
         amount: amountInCents,
