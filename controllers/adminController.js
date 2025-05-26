@@ -852,16 +852,18 @@ const getApplicationsStats = async (req, res) => {
     });
 
     // Map applications with related data like in pagination
-    const allApplications = applicationsSnapshot.docs.map((doc) => {
-      const application = doc.data();
-      return {
-        ...application,
-        isf: initialScreeningForms[application.initialFormId] || null,
-        document: documentsForms[application.documentsFormId] || null,
-        sif: studentIntakeForms[application.studentFormId] || null,
-        user: users[application.userId] || null,
-      };
-    });
+    const allApplications = applicationsSnapshot.docs
+      .map((doc) => {
+        const application = doc.data();
+        return {
+          ...application,
+          isf: initialScreeningForms[application.initialFormId] || null,
+          document: documentsForms[application.documentsFormId] || null,
+          sif: studentIntakeForms[application.studentFormId] || null,
+          user: users[application.userId] || null,
+        };
+      })
+      .filter((app) => !app.archive);
 
     // Rest of your stats calculation remains the same
     const totalApplications = allApplications.length;
@@ -959,14 +961,16 @@ const getPaymentStats = async (req, res) => {
     });
 
     // Map applications with related data
-    const allApplications = applicationsSnapshot.docs.map((doc) => {
-      const application = doc.data();
-      return {
-        ...application,
-        isf: initialScreeningForms[application.initialFormId] || null,
-        user: users[application.userId] || null,
-      };
-    });
+    const allApplications = applicationsSnapshot.docs
+      .map((doc) => {
+        const application = doc.data();
+        return {
+          ...application,
+          isf: initialScreeningForms[application.initialFormId] || null,
+          user: users[application.userId] || null,
+        };
+      })
+      .filter((app) => !app.archive);
 
     // Calculate stats
     const stats = {
@@ -1073,16 +1077,18 @@ const getPaginatedPayments = async (req, res) => {
       });
 
       // Map applications with related data
-      applications = applicationsSnapshot.docs.map((doc) => {
-        const application = doc.data();
-        return {
-          ...application,
-          isf: initialScreeningForms[application.initialFormId] || null,
-          document: documentsForms[application.documentsFormId] || null,
-          sif: studentIntakeForms[application.studentFormId] || null,
-          user: users[application.userId] || null,
-        };
-      });
+      applications = applicationsSnapshot.docs
+        .map((doc) => {
+          const application = doc.data();
+          return {
+            ...application,
+            isf: initialScreeningForms[application.initialFormId] || null,
+            document: documentsForms[application.documentsFormId] || null,
+            sif: studentIntakeForms[application.studentFormId] || null,
+            user: users[application.userId] || null,
+          };
+        })
+        .filter((app) => !app.archive);
 
       cache.set("applications", applications);
     }
@@ -1489,17 +1495,19 @@ const getApplications = async (req, res) => {
       users[doc.id] = doc.data();
     });
 
-    const applications = applicationsSnapshot.docs.map((doc) => {
-      const application = doc.data();
+    const applications = applicationsSnapshot.docs
+      .map((doc) => {
+        const application = doc.data();
 
-      return {
-        ...application,
-        isf: initialScreeningForms[application.initialFormId] || null,
-        document: documentsForms[application.documentsFormId] || null,
-        sif: studentIntakeForms[application.studentFormId] || null,
-        user: users[application.userId] || null,
-      };
-    });
+        return {
+          ...application,
+          isf: initialScreeningForms[application.initialFormId] || null,
+          document: documentsForms[application.documentsFormId] || null,
+          sif: studentIntakeForms[application.studentFormId] || null,
+          user: users[application.userId] || null,
+        };
+      })
+      .filter((app) => !app.archive);
 
     cache.set("applications", applications); // Store results in cache
     res.status(200).json(applications);
@@ -1786,7 +1794,9 @@ const getDashboardStats = async (req, res) => {
 
     const applicationsDocs = applicationsSnapshot.docs;
     const usersDocs = usersSnapshot.docs;
-    let applications = applicationsDocs.map((doc) => doc.data());
+    let applications = applicationsDocs
+      .map((doc) => doc.data())
+      .filter((app) => !app.archive);
 
     if (agentFilter && agentFilter !== "reset") {
       applications = applications.filter(
@@ -2134,13 +2144,14 @@ const getChartData = async (req, res) => {
     }
 
     // Process documents
-    const applicationsDocs = applicationsSnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-      // Add lightweight date processing
-      createdAt: doc.data().status?.[0]?.time?.toDate?.() || null,
-    }));
-
+    const applicationsDocs = applicationsSnapshot.docs
+      .map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+        // Add lightweight date processing
+        createdAt: doc.data().status?.[0]?.time?.toDate?.() || null,
+      }))
+      .filter((app) => !app.archive);
     // Process charts
     const chartsData = processChartsData(
       applicationsDocs,
@@ -2685,7 +2696,7 @@ const getFinanceStats = async (req, res) => {
     const assignedApplications = applications.filter(
       (app) => app.assignedAdmin !== null && app.assignedAdmin !== undefined
     );
-    
+
     const stats = agents.map((agent) => {
       const agentApps = assignedApplications.filter(
         (app) => app.assignedAdmin === agent.name
@@ -2729,7 +2740,6 @@ async function getAgentsFromDB() {
     .get();
   return snapshot.docs.map((doc) => doc.data());
 }
-
 async function getApplicationsFromDB(filter) {
   let query = db.collection("applications");
 
@@ -2761,9 +2771,8 @@ async function getApplicationsFromDB(filter) {
   }
 
   const snapshot = await query.get();
-  return snapshot.docs.map((doc) => doc.data());
+  return snapshot.docs.map((doc) => doc.data()).filter((app) => !app.archive);
 }
-
 // Request RTO Documents
 // Function to request RTO documents
 /**
