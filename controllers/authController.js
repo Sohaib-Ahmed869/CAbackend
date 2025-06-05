@@ -39,12 +39,12 @@ const newLogin = async (req, res) => {
       const emailOption =
         role === "rto" || role === "assessor" ? email : adminEmail;
       // Send email
-      // const emailResponse = await sendVerificationEmail(
-      //   emailOption,
-      //   code,
-      //   role,
-      //   type
-      // );
+      const emailResponse = await sendVerificationEmail(
+        emailOption,
+        code,
+        role,
+        type
+      );
 
       //send otp at email certified@calcite.live as well
       const emailResponse2 = await sendVerificationEmail(
