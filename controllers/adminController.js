@@ -1498,16 +1498,18 @@ const getApplications = async (req, res) => {
     const applications = applicationsSnapshot.docs
       .map((doc) => {
         const application = doc.data();
+        console.log(application);
 
         return {
           ...application,
+          archive: application.archive,
           isf: initialScreeningForms[application.initialFormId] || null,
           document: documentsForms[application.documentsFormId] || null,
           sif: studentIntakeForms[application.studentFormId] || null,
           user: users[application.userId] || null,
         };
       })
-      .filter((app) => !app.archive);
+  
 
     cache.set("applications", applications); // Store results in cache
     res.status(200).json(applications);
