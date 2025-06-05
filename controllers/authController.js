@@ -57,7 +57,9 @@ const newLogin = async (req, res) => {
       // if (!emailResponse.success || !emailResponse2.success) {
       //   return res.status(500).json({ message: "Failed to send 2FA email" });
       // }
-      res.status(200).json({
+
+      // ADD RETURN HERE to prevent further execution
+      return res.status(200).json({
         requires2FA: true,
         message: "2FA code sent to email",
         email,
@@ -66,7 +68,7 @@ const newLogin = async (req, res) => {
       });
     }
 
-    // Generate JWT
+    // Generate JWT (this should only run if 2FA is NOT required)
     const token = jwt.sign({ uid, role, type }, process.env.JWT_SECRET, {
       expiresIn: "8h",
     });
