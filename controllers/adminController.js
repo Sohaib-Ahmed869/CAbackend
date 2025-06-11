@@ -1453,6 +1453,681 @@ const getAssessedApplications = async (req, res) => {
     });
   }
 };
+
+// Add this function to adminController.js
+
+const getComprehensiveAnalytics = async (req, res) => {
+  try {
+    const {
+      months = 6,
+      agentFilter = null,
+      industryFilter = null,
+      qualificationFilter = null,
+    } = req.query;
+
+    // Calculate date range
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setMonth(endDate.getMonth() - parseInt(months));
+
+    console.log(
+      `Fetching analytics from ${startDate.toISOString()} to ${endDate.toISOString()}`
+    );
+
+    // Fetch all required data concurrently
+    const [
+      applicationsSnapshot,
+      initialScreeningFormsSnapshot,
+      studentIntakeFormsSnapshot,
+      documentsFormsSnapshot,
+      usersSnapshot,
+      targetsSnapshot,
+    ] = await Promise.all([
+      db.collection("applications").get(),
+      db.collection("initialScreeningForms").get(),
+      db.collection("studentIntakeForms").get(),
+      db.collection("documents").get(),
+      db.collection("users").get(),
+      db.collection("targets").get(),
+    ]);
+
+    // Create lookup maps for efficient data joining
+    const initialForms = {};
+    initialScreeningFormsSnapshot.docs.forEach((doc) => {
+      initialForms[doc.id] = doc.data();
+    });
+
+    const studentForms = {};
+    studentIntakeFormsSnapshot.docs.forEach((doc) => {
+      studentForms[doc.id] = doc.data();
+    });
+
+    const documentsForms = {};
+    documentsFormsSnapshot.docs.forEach((doc) => {
+      documentsForms[doc.id] = doc.data();
+    });
+
+    const users = {};
+    const agents = [];
+    const customers = [];
+    usersSnapshot.docs.forEach((doc) => {
+      const userData = doc.data();
+      users[doc.id] = userData;
+      if (userData.type === "agent") agents.push(userData);
+      if (userData.role === "customer") customers.push(userData);
+    });
+
+    const targets = {};
+    targetsSnapshot.docs.forEach((doc) => {
+      targets[doc.id] = doc.data();
+    });
+
+    // Process applications with all related data
+    let applications = applicationsSnapshot.docs
+      .map((doc) => {
+        const app = doc.data();
+        const createdDate = app.status?.[0]?.time
+          ? new Date(app.status[0].time)
+          : null;
+
+        return {
+          ...app,
+          id: doc.id,
+          createdDate,
+          user: users[app.userId] || null,
+          initialForm: initialForms[app.initialFormId] || null,
+          studentForm: studentForms[app.studentFormId] || null,
+          documentsForm: documentsForms[app.documentsFormId] || null,
+        };
+      })
+      .filter((app) => {
+        // Filter by date range
+        if (
+          !app.createdDate ||
+          app.createdDate < startDate ||
+          app.createdDate > endDate
+        ) {
+          return false;
+        }
+        // Filter archived
+        if (app.archive) return false;
+
+        // Apply filters
+        if (agentFilter && app.assignedAdmin !== agentFilter) return false;
+        if (industryFilter && app.initialForm?.industry !== industryFilter)
+          return false;
+        if (
+          qualificationFilter &&
+          app.initialForm?.lookingForWhatQualification !== qualificationFilter
+        )
+          return false;
+
+        return true;
+      });
+
+    // ============ ANALYTICS CALCULATIONS ============
+
+    // 1. OVERVIEW METRICS
+    const totalApplications = applications.length;
+    const totalRevenue = applications.reduce((sum, app) => {
+      if (!app.paid) return sum;
+
+      let amount = 0;
+      const parsePrice = (price) =>
+        parseFloat(String(price).replace(/,/g, "")) || 0;
+
+      if (app.discount) {
+        amount = parsePrice(app.price) - parsePrice(app.discount);
+      } else if (app.partialScheme) {
+        const payment1 = parsePrice(app.payment1);
+        const payment2 = parsePrice(app.payment2);
+        amount = app.full_paid ? payment1 + payment2 : payment1;
+      } else {
+        amount = parsePrice(app.price);
+      }
+
+      return sum + amount;
+    }, 0);
+
+    const conversionRate =
+      totalApplications > 0
+        ? (
+            (applications.filter((app) => app.paid).length /
+              totalApplications) *
+            100
+          ).toFixed(2)
+        : 0;
+
+    // 2. LEAD DISTRIBUTION
+    const leadDistribution = {
+      hotLeads: applications.filter((app) => app.color === "red").length,
+      warmLeads: applications.filter((app) => app.color === "orange").length,
+      coldLeads: applications.filter((app) => app.color === "gray").length,
+      proceededWithPayment: applications.filter((app) => app.color === "yellow")
+        .length,
+      impactedStudents: applications.filter((app) => app.color === "lightblue")
+        .length,
+      agents: applications.filter((app) => app.color === "pink").length,
+      completed: applications.filter((app) => app.color === "green").length,
+      others: applications.filter((app) => !app.color || app.color === "white")
+        .length,
+    };
+
+    // 3. MONTHLY TRENDS
+    const monthlyData = {};
+    applications.forEach((app) => {
+      if (!app.createdDate) return;
+
+      const monthKey = `${app.createdDate.getFullYear()}-${String(
+        app.createdDate.getMonth() + 1
+      ).padStart(2, "0")}`;
+
+      if (!monthlyData[monthKey]) {
+        monthlyData[monthKey] = {
+          month: monthKey,
+          applications: 0,
+          paid: 0,
+          revenue: 0,
+          hotLeads: 0,
+          warmLeads: 0,
+          coldLeads: 0,
+          completed: 0,
+        };
+      }
+
+      monthlyData[monthKey].applications++;
+      if (app.paid) monthlyData[monthKey].paid++;
+      if (app.color === "red") monthlyData[monthKey].hotLeads++;
+      if (app.color === "orange") monthlyData[monthKey].warmLeads++;
+      if (app.color === "gray") monthlyData[monthKey].coldLeads++;
+      if (app.currentStatus === "Certificate Generated")
+        monthlyData[monthKey].completed++;
+
+      // Add revenue
+      if (app.paid) {
+        let amount = 0;
+        const parsePrice = (price) =>
+          parseFloat(String(price).replace(/,/g, "")) || 0;
+
+        if (app.discount) {
+          amount = parsePrice(app.price) - parsePrice(app.discount);
+        } else if (app.partialScheme) {
+          const payment1 = parsePrice(app.payment1);
+          const payment2 = parsePrice(app.payment2);
+          amount = app.full_paid ? payment1 + payment2 : payment1;
+        } else {
+          amount = parsePrice(app.price);
+        }
+
+        monthlyData[monthKey].revenue += amount;
+      }
+    });
+
+    const monthlyTrends = Object.values(monthlyData).sort((a, b) =>
+      a.month.localeCompare(b.month)
+    );
+
+    // 4. AGENT PERFORMANCE
+    const agentPerformance = agents.map((agent) => {
+      const agentApps = applications.filter(
+        (app) => app.assignedAdmin === agent.name
+      );
+      const paidApps = agentApps.filter((app) => app.paid);
+      const revenue = paidApps.reduce((sum, app) => {
+        let amount = 0;
+        const parsePrice = (price) =>
+          parseFloat(String(price).replace(/,/g, "")) || 0;
+
+        if (app.discount) {
+          amount = parsePrice(app.price) - parsePrice(app.discount);
+        } else if (app.partialScheme) {
+          const payment1 = parsePrice(app.payment1);
+          const payment2 = parsePrice(app.payment2);
+          amount = app.full_paid ? payment1 + payment2 : payment1;
+        } else {
+          amount = parsePrice(app.price);
+        }
+
+        return sum + amount;
+      }, 0);
+
+      return {
+        agentName: agent.name,
+        totalApplications: agentApps.length,
+        paidApplications: paidApps.length,
+        revenue,
+        conversionRate:
+          agentApps.length > 0
+            ? ((paidApps.length / agentApps.length) * 100).toFixed(2)
+            : 0,
+        averageValue:
+          paidApps.length > 0 ? (revenue / paidApps.length).toFixed(2) : 0,
+        hotLeads: agentApps.filter((app) => app.color === "red").length,
+        warmLeads: agentApps.filter((app) => app.color === "orange").length,
+        coldLeads: agentApps.filter((app) => app.color === "gray").length,
+        completed: agentApps.filter(
+          (app) => app.currentStatus === "Certificate Generated"
+        ).length,
+        studentIntakeCompleted: agentApps.filter(
+          (app) => app.studentIntakeFormSubmitted
+        ).length,
+        documentsUploaded: agentApps.filter((app) => app.documentsUploaded)
+          .length,
+        sentToRTO: agentApps.filter(
+          (app) => app.assessed || app.currentStatus === "Sent to RTO"
+        ).length,
+      };
+    });
+
+    // 5. INDUSTRY BREAKDOWN
+    const industryStats = {};
+    applications.forEach((app) => {
+      const industry = app.initialForm?.industry || "Unknown";
+      if (!industryStats[industry]) {
+        industryStats[industry] = {
+          total: 0,
+          paid: 0,
+          revenue: 0,
+          hotLeads: 0,
+          warmLeads: 0,
+          coldLeads: 0,
+          avgPrice: 0,
+        };
+      }
+
+      industryStats[industry].total++;
+      if (app.paid) {
+        industryStats[industry].paid++;
+
+        let amount = 0;
+        const parsePrice = (price) =>
+          parseFloat(String(price).replace(/,/g, "")) || 0;
+
+        if (app.discount) {
+          amount = parsePrice(app.price) - parsePrice(app.discount);
+        } else if (app.partialScheme) {
+          const payment1 = parsePrice(app.payment1);
+          const payment2 = parsePrice(app.payment2);
+          amount = app.full_paid ? payment1 + payment2 : payment1;
+        } else {
+          amount = parsePrice(app.price);
+        }
+
+        industryStats[industry].revenue += amount;
+      }
+
+      if (app.color === "red") industryStats[industry].hotLeads++;
+      if (app.color === "orange") industryStats[industry].warmLeads++;
+      if (app.color === "gray") industryStats[industry].coldLeads++;
+    });
+
+    // Calculate average prices
+    Object.keys(industryStats).forEach((industry) => {
+      const stats = industryStats[industry];
+      stats.avgPrice =
+        stats.paid > 0 ? (stats.revenue / stats.paid).toFixed(2) : 0;
+      stats.conversionRate =
+        stats.total > 0 ? ((stats.paid / stats.total) * 100).toFixed(2) : 0;
+    });
+
+    // 6. QUALIFICATION BREAKDOWN
+    const qualificationStats = {};
+    applications.forEach((app) => {
+      const qualification =
+        app.initialForm?.lookingForWhatQualification || "Unknown";
+      if (!qualificationStats[qualification]) {
+        qualificationStats[qualification] = {
+          total: 0,
+          paid: 0,
+          revenue: 0,
+          avgPrice: 0,
+          conversionRate: 0,
+        };
+      }
+
+      qualificationStats[qualification].total++;
+      if (app.paid) {
+        qualificationStats[qualification].paid++;
+
+        let amount = 0;
+        const parsePrice = (price) =>
+          parseFloat(String(price).replace(/,/g, "")) || 0;
+
+        if (app.discount) {
+          amount = parsePrice(app.price) - parsePrice(app.discount);
+        } else if (app.partialScheme) {
+          const payment1 = parsePrice(app.payment1);
+          const payment2 = parsePrice(app.payment2);
+          amount = app.full_paid ? payment1 + payment2 : payment1;
+        } else {
+          amount = parsePrice(app.price);
+        }
+
+        qualificationStats[qualification].revenue += amount;
+      }
+    });
+
+    // Calculate qualification averages
+    Object.keys(qualificationStats).forEach((qualification) => {
+      const stats = qualificationStats[qualification];
+      stats.avgPrice =
+        stats.paid > 0 ? (stats.revenue / stats.paid).toFixed(2) : 0;
+      stats.conversionRate =
+        stats.total > 0 ? ((stats.paid / stats.total) * 100).toFixed(2) : 0;
+    });
+
+    // 7. FUNNEL ANALYSIS
+    const funnelAnalysis = {
+      leads: totalApplications,
+      studentIntakeCompleted: applications.filter(
+        (app) => app.studentIntakeFormSubmitted
+      ).length,
+      documentsUploaded: applications.filter((app) => app.documentsUploaded)
+        .length,
+      paymentCompleted: applications.filter((app) => app.paid).length,
+      sentToAssessment: applications.filter(
+        (app) =>
+          app.paid && app.studentIntakeFormSubmitted && app.documentsUploaded
+      ).length,
+      assessed: applications.filter((app) => app.assessed).length,
+      certificateGenerated: applications.filter(
+        (app) => app.currentStatus === "Certificate Generated"
+      ).length,
+      completed: applications.filter(
+        (app) =>
+          app.currentStatus === "Completed" ||
+          app.currentStatus === "Dispatched"
+      ).length,
+    };
+
+    // Calculate funnel conversion rates
+    funnelAnalysis.conversionRates = {
+      leadToStudentIntake:
+        totalApplications > 0
+          ? (
+              (funnelAnalysis.studentIntakeCompleted / totalApplications) *
+              100
+            ).toFixed(2)
+          : 0,
+      studentIntakeToDocuments:
+        funnelAnalysis.studentIntakeCompleted > 0
+          ? (
+              (funnelAnalysis.documentsUploaded /
+                funnelAnalysis.studentIntakeCompleted) *
+              100
+            ).toFixed(2)
+          : 0,
+      documentsToPayment:
+        funnelAnalysis.documentsUploaded > 0
+          ? (
+              (funnelAnalysis.paymentCompleted /
+                funnelAnalysis.documentsUploaded) *
+              100
+            ).toFixed(2)
+          : 0,
+      paymentToAssessment:
+        funnelAnalysis.paymentCompleted > 0
+          ? (
+              (funnelAnalysis.sentToAssessment /
+                funnelAnalysis.paymentCompleted) *
+              100
+            ).toFixed(2)
+          : 0,
+      assessmentToCertificate:
+        funnelAnalysis.assessed > 0
+          ? (
+              (funnelAnalysis.certificateGenerated / funnelAnalysis.assessed) *
+              100
+            ).toFixed(2)
+          : 0,
+      certificateToCompleted:
+        funnelAnalysis.certificateGenerated > 0
+          ? (
+              (funnelAnalysis.completed / funnelAnalysis.certificateGenerated) *
+              100
+            ).toFixed(2)
+          : 0,
+    };
+
+    // 8. STUDENT DEMOGRAPHICS
+    const studentDemographics = {
+      ageGroups: {},
+      genders: {},
+      locations: {},
+      educationLevels: {},
+      employmentStatus: {},
+    };
+
+    applications.forEach((app) => {
+      const student = app.studentForm;
+      if (!student) return;
+
+      // Age groups
+      if (student.dob) {
+        const age =
+          new Date().getFullYear() - new Date(student.dob).getFullYear();
+        let ageGroup = "Unknown";
+        if (age < 25) ageGroup = "18-24";
+        else if (age < 35) ageGroup = "25-34";
+        else if (age < 45) ageGroup = "35-44";
+        else if (age < 55) ageGroup = "45-54";
+        else ageGroup = "55+";
+
+        studentDemographics.ageGroups[ageGroup] =
+          (studentDemographics.ageGroups[ageGroup] || 0) + 1;
+      }
+
+      // Gender
+      if (student.gender) {
+        studentDemographics.genders[student.gender] =
+          (studentDemographics.genders[student.gender] || 0) + 1;
+      }
+
+      // Location (state)
+      if (student.state) {
+        studentDemographics.locations[student.state] =
+          (studentDemographics.locations[student.state] || 0) + 1;
+      }
+
+      // Education level
+      if (student.educationLevel) {
+        studentDemographics.educationLevels[student.educationLevel] =
+          (studentDemographics.educationLevels[student.educationLevel] || 0) +
+          1;
+      }
+
+      // Employment status
+      if (student.employmentStatus) {
+        studentDemographics.employmentStatus[student.employmentStatus] =
+          (studentDemographics.employmentStatus[student.employmentStatus] ||
+            0) + 1;
+      }
+    });
+
+    // 9. CONTACT ATTEMPTS ANALYSIS
+    const contactAnalysis = {
+      noAttempts: applications.filter((app) => !app.contactAttempts).length,
+      oneAttempt: applications.filter((app) => app.contactAttempts === 1)
+        .length,
+      twoAttempts: applications.filter((app) => app.contactAttempts === 2)
+        .length,
+      threeAttempts: applications.filter((app) => app.contactAttempts === 3)
+        .length,
+      fourAttempts: applications.filter((app) => app.contactAttempts === 4)
+        .length,
+      fivePlusAttempts: applications.filter((app) => app.contactAttempts >= 5)
+        .length,
+    };
+
+    // 10. PAYMENT ANALYSIS
+    const paymentAnalysis = {
+      fullPayments: applications.filter((app) => app.paid && !app.partialScheme)
+        .length,
+      partialPayments: applications.filter(
+        (app) => app.partialScheme && app.paid && !app.full_paid
+      ).length,
+      completedPartialPayments: applications.filter(
+        (app) => app.partialScheme && app.full_paid
+      ).length,
+      pendingPayments: applications.filter((app) => !app.paid).length,
+      discountedPayments: applications.filter((app) => app.discount && app.paid)
+        .length,
+      totalRevenue,
+      averageTransactionValue:
+        applications.filter((app) => app.paid).length > 0
+          ? (
+              totalRevenue / applications.filter((app) => app.paid).length
+            ).toFixed(2)
+          : 0,
+    };
+
+    // 11. TOP PERFORMERS
+    const topPerformers = {
+      agents: agentPerformance
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 5),
+      industries: Object.entries(industryStats)
+        .map(([industry, stats]) => ({ industry, ...stats }))
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 5),
+      qualifications: Object.entries(qualificationStats)
+        .map(([qualification, stats]) => ({ qualification, ...stats }))
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 10),
+    };
+
+    // 12. WEEKLY BREAKDOWN
+    const weeklyData = {};
+    applications.forEach((app) => {
+      if (!app.createdDate) return;
+
+      const weekStart = new Date(app.createdDate);
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+      const weekKey = weekStart.toISOString().split("T")[0];
+
+      if (!weeklyData[weekKey]) {
+        weeklyData[weekKey] = {
+          week: weekKey,
+          applications: 0,
+          paid: 0,
+          revenue: 0,
+        };
+      }
+
+      weeklyData[weekKey].applications++;
+      if (app.paid) {
+        weeklyData[weekKey].paid++;
+
+        let amount = 0;
+        const parsePrice = (price) =>
+          parseFloat(String(price).replace(/,/g, "")) || 0;
+
+        if (app.discount) {
+          amount = parsePrice(app.price) - parsePrice(app.discount);
+        } else if (app.partialScheme) {
+          const payment1 = parsePrice(app.payment1);
+          const payment2 = parsePrice(app.payment2);
+          amount = app.full_paid ? payment1 + payment2 : payment1;
+        } else {
+          amount = parsePrice(app.price);
+        }
+
+        weeklyData[weekKey].revenue += amount;
+      }
+    });
+
+    const weeklyTrends = Object.values(weeklyData).sort((a, b) =>
+      a.week.localeCompare(b.week)
+    );
+
+    // ============ RESPONSE STRUCTURE ============
+    const analytics = {
+      metadata: {
+        dateRange: {
+          start: startDate.toISOString(),
+          end: endDate.toISOString(),
+          months: parseInt(months),
+        },
+        filters: {
+          agent: agentFilter,
+          industry: industryFilter,
+          qualification: qualificationFilter,
+        },
+        generatedAt: new Date().toISOString(),
+        totalRecords: totalApplications,
+      },
+
+      overview: {
+        totalApplications,
+        totalRevenue,
+        totalAgents: agents.length,
+        totalCustomers: customers.length,
+        conversionRate: parseFloat(conversionRate),
+        averageTransactionValue: parseFloat(
+          paymentAnalysis.averageTransactionValue
+        ),
+      },
+
+      leadDistribution,
+      monthlyTrends,
+      weeklyTrends,
+      agentPerformance,
+      industryBreakdown: industryStats,
+      qualificationBreakdown: qualificationStats,
+      funnelAnalysis,
+      studentDemographics,
+      contactAnalysis,
+      paymentAnalysis,
+      topPerformers,
+
+      // Raw data for detailed analysis
+      detailedApplications: applications.map((app) => ({
+        id: app.id,
+        applicationId: app.applicationId,
+        createdDate: app.createdDate,
+        currentStatus: app.currentStatus,
+        assignedAdmin: app.assignedAdmin,
+        paid: app.paid,
+        color: app.color,
+        price: app.price,
+        contactAttempts: app.contactAttempts,
+        contactStatus: app.contactStatus,
+        student: {
+          firstName: app.user?.firstName,
+          lastName: app.user?.lastName,
+          email: app.user?.email,
+          phone: app.user?.phone,
+          age: app.studentForm?.dob
+            ? new Date().getFullYear() -
+              new Date(app.studentForm.dob).getFullYear()
+            : null,
+          gender: app.studentForm?.gender,
+          state: app.studentForm?.state,
+          educationLevel: app.studentForm?.educationLevel,
+          employmentStatus: app.studentForm?.employmentStatus,
+        },
+        application: {
+          industry: app.initialForm?.industry,
+          qualification: app.initialForm?.lookingForWhatQualification,
+          yearsOfExperience: app.initialForm?.yearsOfExperience,
+          locationOfExperience: app.initialForm?.locationOfExperience,
+        },
+      })),
+    };
+
+    res.status(200).json({
+      success: true,
+      analytics,
+    });
+  } catch (error) {
+    console.error("Error generating comprehensive analytics:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error generating analytics",
+      error: error.message,
+    });
+  }
+};
 // end
 const getApplications = async (req, res) => {
   try {
@@ -1495,21 +2170,19 @@ const getApplications = async (req, res) => {
       users[doc.id] = doc.data();
     });
 
-    const applications = applicationsSnapshot.docs
-      .map((doc) => {
-        const application = doc.data();
-        console.log(application);
+    const applications = applicationsSnapshot.docs.map((doc) => {
+      const application = doc.data();
+      console.log(application);
 
-        return {
-          ...application,
-          archive: application.archive,
-          isf: initialScreeningForms[application.initialFormId] || null,
-          document: documentsForms[application.documentsFormId] || null,
-          sif: studentIntakeForms[application.studentFormId] || null,
-          user: users[application.userId] || null,
-        };
-      })
-  
+      return {
+        ...application,
+        archive: application.archive,
+        isf: initialScreeningForms[application.initialFormId] || null,
+        document: documentsForms[application.documentsFormId] || null,
+        sif: studentIntakeForms[application.studentFormId] || null,
+        user: users[application.userId] || null,
+      };
+    });
 
     cache.set("applications", applications); // Store results in cache
     res.status(200).json(applications);
@@ -3115,4 +3788,5 @@ module.exports = {
   getAssessorPendingApplications,
   getFinanceStats,
   getLeadsStats,
+  getComprehensiveAnalytics 
 };

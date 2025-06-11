@@ -136,9 +136,6 @@ const getUserApplications = async (req, res) => {
   try {
     // Check if data is already in the cache
     const cachedApplications = cache.get(`userApplications:${userId}`);
-    if (cachedApplications) {
-      return res.status(200).json({ applications: cachedApplications });
-    }
 
     // Step 1: Fetch user applications
     const applicationsSnapshot = await db
@@ -1470,7 +1467,7 @@ const processPayment = async (req, res) => {
     const payment = await squareClient.paymentsApi.createPayment({
       // sourceId: sourceId, //
       sourceId: sourceId,
-      idempotencyKey: `${applicationId}-${Date.now()}`,
+      idempotencyKey: `${applicationId}`,
       amountMoney: {
         amount: amountInCents,
         currency: "AUD",
@@ -1519,8 +1516,8 @@ const processPayment = async (req, res) => {
 
         // Create Square card
         const cardResponse = await squareClient.cardsApi.createCard({
-          idempotencyKey: `${applicationId}-${Date.now()}`,
-          sourceId: sourceId,
+          idempotencyKey: `${applicationId}`,
+          sourceId: sourceId, // Use a valid sourceId
           card: {
             customerId: customerResponse.result.customer.id,
           },
@@ -2099,6 +2096,1163 @@ const getApplicationStats = async (req, res) => {
   }
 };
 
+const setupPaymentPlan = async (req, res) => {
+  const { applicationId } = req.params;
+  const {
+    totalAmount,
+    frequency, // 'weekly', 'fortnightly', 'monthly', 'custom'
+    numberOfPayments,
+    firstPaymentAmount,
+    subsequentPaymentAmount,
+    startDate,
+    customIntervalDays, // only used when frequency is 'custom'
+    directDebitEnabled = false,
+    sourceId, // Square card source ID for direct debit
+  } = req.body;
+
+  console.log(directDebitEnabled, sourceId);
+
+  try {
+    const applicationRef = db.collection("applications").doc(applicationId);
+    const applicationDoc = await applicationRef.get();
+
+    if (!applicationDoc.exists) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+
+    const applicationData = applicationDoc.data();
+    const userId = applicationData.userId;
+
+    // Calculate payment schedule
+    const paymentSchedule = generatePaymentSchedule({
+      frequency,
+      numberOfPayments,
+      firstPaymentAmount,
+      subsequentPaymentAmount,
+      startDate,
+      customIntervalDays,
+    });
+
+    // Prepare update data
+    const updateData = {
+      paymentPlan: {
+        totalAmount: totalAmount,
+        frequency: frequency,
+        numberOfPayments: numberOfPayments,
+        firstPaymentAmount: firstPaymentAmount,
+        subsequentPaymentAmount: subsequentPaymentAmount,
+        startDate: startDate,
+        customIntervalDays: customIntervalDays || null,
+        paymentSchedule: paymentSchedule,
+        currentPaymentIndex: 0,
+        completedPayments: 0,
+        totalPaidAmount: 0,
+        status: "ACTIVE",
+        createdAt: new Date().toISOString(),
+      },
+      paymentPlanEnabled: true,
+      paid: false,
+      full_paid: false,
+    };
+
+    if (directDebitEnabled) {
+      updateData.paymentPlan.directDebit = {
+        enabled: true,
+        status: "PENDING_SETUP", // Will be set up during first payment
+        squareCustomerId: null,
+        squareCardId: null,
+        setupDate: null,
+      };
+    }
+
+    // Update application
+    await applicationRef.update(updateData);
+
+    // Send email notification to user
+    const userRef = await db.collection("users").doc(userId).get();
+    if (userRef.exists) {
+      const userData = userRef.data();
+      await sendPaymentPlanEmailNotification(
+        userData.email,
+        userData.firstName,
+        userData.lastName,
+        applicationData.applicationId,
+        paymentSchedule,
+        frequency,
+        totalAmount,
+        directDebitEnabled
+      );
+    }
+
+    res.status(200).json({
+      message: "Payment plan created successfully",
+      paymentSchedule: paymentSchedule,
+      directDebitEnabled: directDebitEnabled,
+    });
+  } catch (error) {
+    console.error("Error setting up payment plan:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Helper function to generate payment schedule
+const generatePaymentSchedule = ({
+  frequency,
+  numberOfPayments,
+  firstPaymentAmount,
+  subsequentPaymentAmount,
+  startDate,
+  customIntervalDays,
+}) => {
+  const schedule = [];
+  let currentDate = new Date(startDate);
+
+  // First payment
+  schedule.push({
+    paymentNumber: 1,
+    amount: firstPaymentAmount,
+    dueDate: new Date(currentDate).toISOString(),
+    status: "PENDING",
+    isFirstPayment: true,
+  });
+
+  // Subsequent payments
+  for (let i = 2; i <= numberOfPayments; i++) {
+    // Calculate next payment date based on frequency
+    switch (frequency) {
+      case "weekly":
+        currentDate.setDate(currentDate.getDate() + 7);
+        break;
+      case "fortnightly":
+        currentDate.setDate(currentDate.getDate() + 14);
+        break;
+      case "monthly":
+        currentDate.setMonth(currentDate.getMonth() + 1);
+        break;
+      case "custom":
+        currentDate.setDate(currentDate.getDate() + customIntervalDays);
+        break;
+      default:
+        throw new Error(`Invalid frequency: ${frequency}`);
+    }
+
+    schedule.push({
+      paymentNumber: i,
+      amount: subsequentPaymentAmount,
+      dueDate: new Date(currentDate).toISOString(),
+      status: "PENDING",
+      isFirstPayment: false,
+    });
+  }
+
+  return schedule;
+};
+
+// Process scheduled payment plan payments
+const processScheduledPaymentPlanPayment = async (applicationId) => {
+  try {
+    const applicationRef = db.collection("applications").doc(applicationId);
+    const applicationDoc = await applicationRef.get();
+
+    if (!applicationDoc.exists) return false;
+
+    const appData = applicationDoc.data();
+    const paymentPlan = appData.paymentPlan;
+
+    if (
+      !paymentPlan ||
+      !paymentPlan.directDebit?.enabled ||
+      paymentPlan.status !== "ACTIVE"
+    ) {
+      return false;
+    }
+
+    // Find next pending payment
+    const nextPayment = paymentPlan.paymentSchedule.find(
+      (payment) => payment.status === "PENDING"
+    );
+
+    if (!nextPayment) return false;
+
+    // Check if payment is due (current date >= due date)
+    const currentDate = new Date();
+    const dueDate = new Date(nextPayment.dueDate);
+
+    if (currentDate < dueDate) return false;
+
+    // Process payment with Square
+    const payment = await squareClient.paymentsApi.createPayment({
+      sourceId: paymentPlan.directDebit.squareCardId,
+      idempotencyKey: `${applicationId}-payment-${
+        nextPayment.paymentNumber
+      }-${Date.now()}`,
+      amountMoney: {
+        amount: Math.round(nextPayment.amount * 100),
+        currency: "AUD",
+      },
+      customerId: paymentPlan.directDebit.squareCustomerId,
+      locationId: process.env.SQUARE_LOCATION_ID,
+      note: `Payment Plan Payment #${nextPayment.paymentNumber} for Application ${applicationId}`,
+    });
+
+    if (payment.result.payment.status === "COMPLETED") {
+      // Update payment schedule
+      const updatedSchedule = paymentPlan.paymentSchedule.map((p) =>
+        p.paymentNumber === nextPayment.paymentNumber
+          ? {
+              ...p,
+              status: "COMPLETED",
+              paidDate: new Date().toISOString(),
+              transactionId: payment.result.payment.id,
+            }
+          : p
+      );
+
+      const completedPayments = paymentPlan.completedPayments + 1;
+      const totalPaidAmount =
+        Number(paymentPlan.totalPaidAmount || 0) +
+        Number(nextPayment.amount || 0);
+      const isFullyPaid = completedPayments === paymentPlan.numberOfPayments;
+
+      // Update application
+      const updateData = {
+        "paymentPlan.paymentSchedule": updatedSchedule,
+        "paymentPlan.completedPayments": completedPayments,
+        "paymentPlan.totalPaidAmount": totalPaidAmount,
+        "paymentPlan.lastPaymentDate": new Date().toISOString(),
+      };
+
+      if (isFullyPaid) {
+        updateData["paymentPlan.status"] = "COMPLETED";
+        updateData.paid = true;
+        updateData.full_paid = true;
+        updateData.currentStatus = "Sent to Assessor";
+        updateData.status = [
+          ...(appData.status || []),
+          {
+            statusname: "Sent to Assessor",
+            time: new Date().toISOString(),
+          },
+        ];
+      }
+
+      await applicationRef.update(updateData);
+
+      // Send email notification
+      const userRef = await db.collection("users").doc(appData.userId).get();
+      if (userRef.exists) {
+        const userData = userRef.data();
+        await sendPaymentPlanPaymentConfirmation(
+          userData.email,
+          userData.firstName,
+          userData.lastName,
+          appData.applicationId,
+          nextPayment,
+          isFullyPaid,
+          totalPaidAmount,
+          paymentPlan.totalAmount
+        );
+      }
+
+      return true;
+    }
+
+    return false;
+  } catch (error) {
+    console.error("Scheduled Payment Plan Payment Error:", error);
+    const applicationRef = db.collection("applications").doc(applicationId);
+    await applicationRef.update({
+      "paymentPlan.directDebit.status": "FAILED",
+      "paymentPlan.directDebit.lastError": error.message,
+      "paymentPlan.directDebit.lastFailedAt": new Date().toISOString(),
+    });
+    return false;
+  }
+};
+
+// Process single payment plan payment (manual)
+const processPaymentPlanPayment = async (req, res) => {
+  const { applicationId } = req.params;
+  const { paymentNumber, sourceId } = req.body;
+
+  try {
+    const applicationRef = db.collection("applications").doc(applicationId);
+    const applicationDoc = await applicationRef.get();
+
+    if (!applicationDoc.exists) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+
+    const appData = applicationDoc.data();
+    const paymentPlan = appData.paymentPlan;
+    const userId = appData.userId;
+
+    if (!paymentPlan || paymentPlan.status !== "ACTIVE") {
+      return res.status(400).json({ message: "Invalid payment plan" });
+    }
+
+    // Find the specific payment
+    const targetPayment = paymentPlan.paymentSchedule.find(
+      (payment) =>
+        payment.paymentNumber === paymentNumber && payment.status === "PENDING"
+    );
+
+    if (!targetPayment) {
+      return res
+        .status(400)
+        .json({ message: "Payment not found or already completed" });
+    }
+
+    // Setup direct debit if this is the first payment and direct debit is enabled but not set up
+    let shouldSetupDirectDebit = false;
+    if (
+      paymentNumber === 1 &&
+      paymentPlan.directDebit?.enabled === true &&
+      paymentPlan.directDebit?.status === "PENDING_SETUP" &&
+      paymentPlan.completedPayments === 0
+    ) {
+      shouldSetupDirectDebit = true;
+
+      try {
+        console.log("Setting up direct debit for payment plan...");
+
+        // Create Square customer
+        const customerResponse = await squareClient.customersApi.createCustomer(
+          {
+            givenName: "Payment Plan Customer",
+            referenceId: `APP-${applicationId}-USER-${userId}`,
+          }
+        );
+
+        // Create Square card
+        const cardResponse = await squareClient.cardsApi.createCard({
+          idempotencyKey: `${applicationId}`,
+          sourceId: sourceId, // Use test sourceId
+          card: {
+            customerId: customerResponse.result.customer.id,
+          },
+        });
+
+        // Update payment plan with direct debit details BEFORE processing payment
+        await applicationRef.update({
+          "paymentPlan.directDebit.squareCustomerId":
+            customerResponse.result.customer.id,
+          "paymentPlan.directDebit.squareCardId": cardResponse.result.card.id,
+          "paymentPlan.directDebit.status": "SCHEDULED",
+          "paymentPlan.directDebit.setupDate": new Date().toISOString(),
+          "paymentPlan.directDebit.updatedAt": new Date().toISOString(),
+        });
+
+        console.log("✅ Direct debit setup completed for payment plan");
+
+        // Send direct debit setup email
+        const userRef = await db.collection("users").doc(userId).get();
+        if (userRef.exists) {
+          const userData = userRef.data();
+          const AppId = appData.applicationId;
+
+          const emailBody = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+                    body {
+                        font-family: 'Inter', sans-serif;
+                        margin: 0;
+                        padding: 0;
+                        background-color: #f7f9fc;
+                        color: #333;
+                    }
+                    .email-container {
+                        max-width: 600px;
+                        margin: 30px auto;
+                        background: #fff;
+                        border-radius: 12px;
+                        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+                        overflow: hidden;
+                    }
+                    .header {
+                        background: #fff;
+                        padding: 24px;
+                        text-align: center;
+                    }
+                    .header img {
+                        max-width: 200px;
+                    }
+                    .content {
+                        padding: 32px;
+                        line-height: 1.6;
+                    }
+                    .message {
+                        font-size: 16px;
+                        color: #555;
+                        margin-bottom: 20px;
+                    }
+                    .details-card {
+                        background: #f9fafb;
+                        border-radius: 8px;
+                        padding: 20px;
+                        margin: 20px 0;
+                        border-left: 4px solid #089C34;
+                    }
+                    .card-title {
+                        font-size: 18px;
+                        font-weight: 600;
+                        color: #222;
+                        margin-bottom: 15px;
+                    }
+                    .detail-item {
+                        margin: 10px 0;
+                        display: flex;
+                        justify-content: space-between;
+                    }
+                    .detail-label {
+                        color: #666;
+                        font-weight: 500;
+                        margin-right: 10px;
+                    }
+                    .detail-value {
+                        font-weight: 500;
+                        color: #222;
+                    }
+                    .footer {
+                        background: #fff;
+                        padding: 20px;
+                        text-align: center;
+                        font-size: 14px;
+                        color: #666;
+                    }
+                    .footer a {
+                        color: #666;
+                        font-weight: 600;
+                        text-decoration: none;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="email-container">
+                    <div class="header">
+                        <img src="https://logosca.s3.ap-southeast-2.amazonaws.com/image-removebg-preview+(18).png" alt="Certified Australia">
+                    </div>
+                    <div class="content">
+                        <h1 style="color: #089C34; margin-bottom: 25px;">Direct Debit Setup Complete</h1>
+                        
+                        <p class="message">Dear ${
+                          userData.firstName || "Applicant"
+                        },</p>
+                        <p class="message">Direct debit for your payment plan on application <strong>#${AppId}</strong> has been successfully set up.</p>
+
+                        <div class="details-card">
+                            <div class="card-title">Payment Plan Details</div>
+                            <div class="detail-item">
+                                <span class="detail-label">Frequency:</span>
+                                <span class="detail-value">${
+                                  paymentPlan.frequency
+                                }</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Total Payments:</span>
+                                <span class="detail-value">${
+                                  paymentPlan.numberOfPayments
+                                }</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Remaining Payments:</span>
+                                <span class="detail-value">${
+                                  paymentPlan.numberOfPayments -
+                                  paymentPlan.completedPayments -
+                                  1
+                                }</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Payment Method:</span>
+                                <span class="detail-value">Automated Direct Debit</span>
+                            </div>
+                        </div>
+
+                        <p class="message" style="margin-top: 25px;">
+                            <strong>Important:</strong> Your future payments will be automatically processed on the scheduled dates. 
+                            Please ensure sufficient funds are available in your account.
+                        </p>
+                        
+                        <p class="message">
+                            Need to update your payment details? Contact our support team for assistance.
+                        </p>
+                    </div>
+                   <div class="footer">
+                        <p>© 2025 Certified Australia. All rights reserved.</p>
+                        <p>Need help? <a href="mailto:support@certifiedaustralia.com.au">Contact Support</a></p>
+                    </div>
+                </div>
+            </body>
+            </html>`;
+
+          const subject = `Direct Debit Setup Complete - Application ${AppId}`;
+          await sendEmail(userData.email, emailBody, subject);
+        }
+      } catch (directDebitError) {
+        console.error("❌ Direct debit setup failed:", directDebitError);
+        // Continue with payment even if direct debit setup fails
+        shouldSetupDirectDebit = false;
+      }
+    }
+
+    // Process payment
+    const payment = await squareClient.paymentsApi.createPayment({
+      sourceId: sourceId, // Use a valid test sourceId
+      idempotencyKey: `${applicationId}`,
+      amountMoney: {
+        amount: Math.round(targetPayment.amount * 100),
+        currency: "AUD",
+      },
+      locationId: process.env.SQUARE_LOCATION_ID,
+      note: `Payment Plan Payment #${paymentNumber} for Application ${applicationId}`,
+    });
+
+    if (payment.result.payment.status === "COMPLETED") {
+      // Update payment schedule
+      const updatedSchedule = paymentPlan.paymentSchedule.map((p) =>
+        p.paymentNumber === paymentNumber
+          ? {
+              ...p,
+              status: "COMPLETED",
+              paidDate: new Date().toISOString(),
+              transactionId: payment.result.payment.id,
+            }
+          : p
+      );
+
+      const completedPayments = paymentPlan.completedPayments + 1;
+      const totalPaidAmount =
+        Number(paymentPlan.totalPaidAmount || 0) +
+        Number(targetPayment.amount || 0);
+      const isFullyPaid = completedPayments === paymentPlan.numberOfPayments;
+
+      // Update application
+      const updateData = {
+        "paymentPlan.paymentSchedule": updatedSchedule,
+        "paymentPlan.completedPayments": completedPayments,
+        "paymentPlan.totalPaidAmount": totalPaidAmount,
+        "paymentPlan.lastPaymentDate": new Date().toISOString(),
+      };
+
+      if (isFullyPaid) {
+        updateData["paymentPlan.status"] = "COMPLETED";
+        updateData.paid = true;
+        updateData.full_paid = true;
+        updateData.currentStatus = "Sent to Assessor";
+        updateData.status = [
+          ...(appData.status || []),
+          {
+            statusname: "Sent to Assessor",
+            time: new Date().toISOString(),
+          },
+        ];
+      }
+
+      await applicationRef.update(updateData);
+
+      res.json({
+        success: true,
+        isFullyPaid: isFullyPaid,
+        totalPaidAmount: totalPaidAmount,
+        directDebitSetup: shouldSetupDirectDebit,
+      });
+
+  
+      // Send payment confirmation emails
+      const userRef = await db.collection("users").doc(appData.userId).get();
+      if (userRef.exists) {
+        const userData = userRef.data();
+        await sendPaymentPlanPaymentConfirmation(
+          userData.email,
+          userData.firstName,
+          userData.lastName,
+          appData.applicationId,
+          targetPayment,
+          isFullyPaid,
+          totalPaidAmount,
+          paymentPlan.totalAmount
+        );
+
+        // Add admin notification for first payment
+        if (targetPayment.paymentNumber === 1) {
+          const adminEmails = [
+            "ceo@certifiedaustralia.com.au",
+            "certified@calcite.live",
+            process.env.CEO_EMAIL,
+          ].filter(Boolean);
+
+          const adminEmailBody = `
+      <h2>First Payment Plan Payment Received</h2>
+      <p>The first payment of a payment plan has been processed for application ${
+        appData.applicationId
+      }.</p>
+      <p><strong>Details:</strong></p>
+      <ul>
+        <li>Application ID: ${appData.applicationId}</li>
+        <li>User: ${userData.firstName} ${userData.lastName}</li>
+        <li>First Payment: $${targetPayment.amount}</li>
+        <li>Payment Plan Total: $${paymentPlan.totalAmount}</li>
+        <li>Frequency: ${paymentPlan.frequency}</li>
+        <li>Total Payments: ${paymentPlan.numberOfPayments}</li>
+        <li>Direct Debit: ${
+          paymentPlan.directDebit?.enabled ? "Enabled" : "Disabled"
+        }</li>
+        <li>Date: ${new Date().toISOString()}</li>
+      </ul>
+    `;
+
+          for (const adminEmail of adminEmails) {
+            await sendEmail(
+              adminEmail,
+              adminEmailBody,
+              `First Payment Plan Payment - Application ${appData.applicationId}`
+            );
+          }
+        }
+      }
+
+      if (isFullyPaid) {
+        await checkApplicationStatusAndSendEmails(
+          applicationId,
+          "payment_made"
+        );
+      }
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: "Payment not completed",
+      });
+    }
+  } catch (error) {
+    console.error("Payment Plan Payment Error:", error);
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// Get payment plan details
+const getPaymentPlanDetails = async (req, res) => {
+  const { applicationId } = req.params;
+
+  try {
+    const applicationRef = db.collection("applications").doc(applicationId);
+    const applicationDoc = await applicationRef.get();
+
+    if (!applicationDoc.exists) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+
+    const appData = applicationDoc.data();
+    const paymentPlan = appData.paymentPlan;
+
+    if (!paymentPlan) {
+      return res.status(404).json({ message: "No payment plan found" });
+    }
+
+    res.json({
+      paymentPlan: paymentPlan,
+      applicationId: applicationId,
+      applicationStatus: appData.currentStatus,
+    });
+  } catch (error) {
+    console.error("Error getting payment plan details:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Update payment plan (pause, resume, modify)
+const updatePaymentPlan = async (req, res) => {
+  const { applicationId } = req.params;
+  const { action, ...updateData } = req.body; // action: 'pause', 'resume', 'modify'
+
+  try {
+    const applicationRef = db.collection("applications").doc(applicationId);
+    const applicationDoc = await applicationRef.get();
+
+    if (!applicationDoc.exists) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+
+    const appData = applicationDoc.data();
+    let paymentPlan = appData.paymentPlan;
+
+    if (!paymentPlan) {
+      return res.status(404).json({ message: "No payment plan found" });
+    }
+
+    let updates = {};
+
+    switch (action) {
+      case "pause":
+        updates["paymentPlan.status"] = "PAUSED";
+        updates["paymentPlan.pausedAt"] = new Date().toISOString();
+        if (paymentPlan.directDebit?.enabled) {
+          updates["paymentPlan.directDebit.status"] = "PAUSED";
+        }
+        break;
+
+      case "resume":
+        updates["paymentPlan.status"] = "ACTIVE";
+        updates["paymentPlan.resumedAt"] = new Date().toISOString();
+        if (paymentPlan.directDebit?.enabled) {
+          updates["paymentPlan.directDebit.status"] = "SCHEDULED";
+        }
+        break;
+
+      case "modify":
+        // Allow modification of certain fields
+        const allowedFields = ["frequency", "customIntervalDays"];
+        allowedFields.forEach((field) => {
+          if (updateData[field] !== undefined) {
+            updates[`paymentPlan.${field}`] = updateData[field];
+          }
+        });
+        updates["paymentPlan.modifiedAt"] = new Date().toISOString();
+        break;
+
+      default:
+        return res.status(400).json({ message: "Invalid action" });
+    }
+
+    await applicationRef.update(updates);
+
+    res.json({
+      message: `Payment plan ${action}d successfully`,
+      updatedFields: Object.keys(updates),
+    });
+  } catch (error) {
+    console.error("Error updating payment plan:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Email notification functions
+const sendPaymentPlanEmailNotification = async (
+  email,
+  firstName,
+  lastName,
+  applicationId,
+  paymentSchedule,
+  frequency,
+  totalAmount,
+  directDebitEnabled
+) => {
+  const emailBody = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+            body {
+                font-family: 'Inter', sans-serif;
+                margin: 0;
+                padding: 0;
+                background-color: #f7f9fc;
+                color: #333;
+            }
+            .email-container {
+                max-width: 600px;
+                margin: 30px auto;
+                background: #fff;
+                border-radius: 12px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+                overflow: hidden;
+            }
+            .header {
+                background: #fff;
+                padding: 24px;
+                text-align: center;
+            }
+            .header img {
+                max-width: 200px;
+            }
+            .content {
+                padding: 32px;
+                line-height: 1.6;
+            }
+            .details-card {
+                background: #f9fafb;
+                border-radius: 8px;
+                padding: 20px;
+                margin: 20px 0;
+                border-left: 4px solid #089C34;
+            }
+            .payment-schedule {
+                margin: 15px 0;
+            }
+            .payment-item {
+                padding: 10px;
+                border-bottom: 1px solid #eee;
+                display: flex;
+                justify-content: space-between;
+            }
+            .footer {
+                background: #fff;
+                padding: 20px;
+                text-align: center;
+                font-size: 14px;
+                color: #666;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="email-container">
+            <div class="header">
+                <img src="https://logosca.s3.ap-southeast-2.amazonaws.com/image-removebg-preview+(18).png" alt="Certified Australia">
+            </div>
+            <div class="content">
+                <h1 style="color: #089C34;">Payment Plan Setup Complete</h1>
+                
+                <p>Dear ${firstName} ${lastName},</p>
+                <p>Your payment plan for application <strong>#${applicationId}</strong> has been successfully set up.</p>
+
+                <div class="details-card">
+                    <h3>Payment Plan Details</h3>
+                    <p><strong>Total Amount:</strong> $${totalAmount}</p>
+                    <p><strong>Payment Frequency:</strong> ${
+                      frequency.charAt(0).toUpperCase() + frequency.slice(1)
+                    }</p>
+                    <p><strong>Number of Payments:</strong> ${
+                      paymentSchedule.length
+                    }</p>
+                    <p><strong>Auto-Pay:</strong> ${
+                      directDebitEnabled ? "Enabled" : "Disabled"
+                    }</p>
+                    
+                    <div class="payment-schedule">
+                        <h4>Payment Schedule:</h4>
+                        ${paymentSchedule
+                          .map(
+                            (payment) => `
+                            <div class="payment-item">
+                                <span>Payment #${payment.paymentNumber}</span>
+                                <span>$${payment.amount}</span>
+                                <span>${new Date(
+                                  payment.dueDate
+                                ).toLocaleDateString()}</span>
+                            </div>
+                        `
+                          )
+                          .join("")}
+                    </div>
+                </div>
+
+                ${
+                  directDebitEnabled
+                    ? `
+                    <p><strong>Important:</strong> Your payments will be automatically processed on the scheduled dates. Please ensure sufficient funds are available.</p>
+                `
+                    : `
+                    <p><strong>Important:</strong> You will need to manually make each payment by the due date. We will send you reminders before each payment is due.</p>
+                `
+                }
+            </div>
+            <div class="footer">
+                <p>© 2025 Certified Australia. All rights reserved.</p>
+            </div>
+        </div>
+    </body>
+    </html>`;
+
+  const subject = `Payment Plan Setup - Application ${applicationId}`;
+  await sendEmail(email, emailBody, subject);
+};
+
+const sendPaymentPlanPaymentConfirmation = async (
+  email,
+  firstName,
+  lastName,
+  applicationId,
+  payment,
+  isFullyPaid,
+  totalPaidAmount,
+  totalAmount
+) => {
+  const emailBody = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+            body {
+                font-family: 'Inter', sans-serif;
+                margin: 0;
+                padding: 0;
+                background-color: #f7f9fc;
+                color: #333;
+            }
+            .email-container {
+                max-width: 600px;
+                margin: 30px auto;
+                background: #fff;
+                border-radius: 12px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+                overflow: hidden;
+            }
+            .header {
+                background: #fff;
+                padding: 24px;
+                text-align: center;
+            }
+            .content {
+                padding: 32px;
+                line-height: 1.6;
+            }
+            .details-card {
+                background: #f9fafb;
+                border-radius: 8px;
+                padding: 20px;
+                margin: 20px 0;
+                border-left: 4px solid #089C34;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="email-container">
+            <div class="header">
+                <img src="https://logosca.s3.ap-southeast-2.amazonaws.com/image-removebg-preview+(18).png" alt="Certified Australia">
+            </div>
+            <div class="content">
+                <h1 style="color: #089C34;">Payment Confirmation</h1>
+                
+                <p>Dear ${firstName} ${lastName},</p>
+                <p>Your payment for application <strong>#${applicationId}</strong> has been successfully processed.</p>
+
+                <div class="details-card">
+                    <h3>Payment Details</h3>
+                    <p><strong>Payment #${payment.paymentNumber}:</strong> $${
+    payment.amount
+  }</p>
+                    <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
+                    <p><strong>Total Paid:</strong> $${totalPaidAmount} of $${totalAmount}</p>
+                    ${
+                      payment.transactionId
+                        ? `<p><strong>Transaction ID:</strong> ${payment.transactionId}</p>`
+                        : ""
+                    }
+                </div>
+
+                ${
+                  isFullyPaid
+                    ? `
+                    <div style="background: #d4edda; padding: 15px; border-radius: 8px; border-left: 4px solid #28a745;">
+                        <h3 style="color: #155724; margin-top: 0;">Payment Plan Complete! 🎉</h3>
+                        <p style="color: #155724;">Congratulations! You have completed all payments for your application. Your application has been sent to the assessor for processing.</p>
+                    </div>
+                `
+                    : `
+                    <p>Thank you for your payment. Your next payment will be due as per your payment schedule.</p>
+                `
+                }
+            </div>
+            <div class="footer">
+                <p>© 2025 Certified Australia. All rights reserved.</p>
+            </div>
+        </div>
+    </body>
+    </html>`;
+
+  const subject = isFullyPaid
+    ? `Payment Plan Complete - Application ${applicationId}`
+    : `Payment Confirmation - Application ${applicationId}`;
+
+  await sendEmail(email, emailBody, subject);
+};
+
+const setupDirectDebitForPaymentPlan = async (req, res) => {
+  const { applicationId } = req.params;
+  const { sourceId } = req.body;
+
+  try {
+    const applicationRef = db.collection("applications").doc(applicationId);
+    const applicationDoc = await applicationRef.get();
+
+    if (!applicationDoc.exists) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+
+    const appData = applicationDoc.data();
+    const paymentPlan = appData.paymentPlan;
+
+    if (!paymentPlan || !paymentPlan.paymentSchedule) {
+      return res.status(400).json({ message: "No active payment plan found" });
+    }
+
+    const userId = appData.userId;
+
+    // Create Square customer if not exists
+    let customerId = paymentPlan.directDebit?.squareCustomerId;
+    if (!customerId) {
+      const customerResponse = await squareClient.customersApi.createCustomer({
+        givenName: "Payment Plan Customer",
+        referenceId: `APP-${applicationId}-USER-${userId}`,
+      });
+      customerId = customerResponse.result.customer.id;
+    }
+
+    // Create Square card
+    const cardResponse = await squareClient.cardsApi.createCard({
+      idempotencyKey: `${applicationId}-card-${Date.now()}`,
+      sourceId: sourceId,
+      card: {
+        customerId: customerId,
+      },
+    });
+
+    // Update payment plan with direct debit details
+    await applicationRef.update({
+      "paymentPlan.directDebit": {
+        enabled: true,
+        squareCustomerId: customerId,
+        squareCardId: cardResponse.result.card.id,
+        status: "SCHEDULED",
+        setupDate: new Date().toISOString(),
+        setupBy: "admin",
+      },
+    });
+
+    // Send confirmation email to user
+    const userRef = await db.collection("users").doc(userId).get();
+    if (userRef.exists) {
+      const userData = userRef.data();
+      await sendDirectDebitSetupNotification(
+        userData.email,
+        userData.firstName,
+        userData.lastName,
+        appData.applicationId,
+        paymentPlan
+      );
+    }
+
+    res.status(200).json({
+      message: "Direct debit setup successfully",
+      customerId: customerId,
+      cardId: cardResponse.result.card.id,
+    });
+  } catch (error) {
+    console.error("Error setting up direct debit:", error);
+    res.status(500).json({
+      message: "Failed to setup direct debit",
+      error: error.message,
+    });
+  }
+};
+
+// Email notification for direct debit setup
+const sendDirectDebitSetupNotification = async (
+  email,
+  firstName,
+  lastName,
+  applicationId,
+  paymentPlan
+) => {
+  const nextPayment = paymentPlan.paymentSchedule?.find(
+    (p) => p.status === "PENDING"
+  );
+
+  const emailBody = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+            body {
+                font-family: 'Inter', sans-serif;
+                margin: 0;
+                padding: 0;
+                background-color: #f7f9fc;
+                color: #333;
+            }
+            .email-container {
+                max-width: 600px;
+                margin: 30px auto;
+                background: #fff;
+                border-radius: 12px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+                overflow: hidden;
+            }
+            .header {
+                background: #fff;
+                padding: 24px;
+                text-align: center;
+            }
+            .content {
+                padding: 32px;
+                line-height: 1.6;
+            }
+            .details-card {
+                background: #f9fafb;
+                border-radius: 8px;
+                padding: 20px;
+                margin: 20px 0;
+                border-left: 4px solid #089C34;
+            }
+            .footer {
+                background: #fff;
+                padding: 20px;
+                text-align: center;
+                font-size: 14px;
+                color: #666;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="email-container">
+            <div class="header">
+                <img src="https://logosca.s3.ap-southeast-2.amazonaws.com/image-removebg-preview+(18).png" alt="Certified Australia">
+            </div>
+            <div class="content">
+                <h1 style="color: #089C34;">Direct Debit Setup Complete</h1>
+                
+                <p>Dear ${firstName} ${lastName},</p>
+                <p>Direct debit has been successfully set up for your payment plan on application <strong>#${applicationId}</strong>.</p>
+
+                <div class="details-card">
+                    <h3>Auto-Payment Details</h3>
+                    <p><strong>Payment Plan:</strong> ${
+                      paymentPlan.frequency
+                    } payments</p>
+                    <p><strong>Total Amount:</strong> $${
+                      paymentPlan.totalAmount
+                    }</p>
+                    <p><strong>Remaining Payments:</strong> ${
+                      paymentPlan.numberOfPayments -
+                      paymentPlan.completedPayments
+                    }</p>
+                    ${
+                      nextPayment
+                        ? `
+                        <p><strong>Next Payment:</strong> $${
+                          nextPayment.amount
+                        } on ${new Date(
+                            nextPayment.dueDate
+                          ).toLocaleDateString()}</p>
+                    `
+                        : ""
+                    }
+                </div>
+
+                <p><strong>Important:</strong> Your payments will now be automatically processed on the scheduled dates. Please ensure sufficient funds are available in your account.</p>
+                
+                <p>If you need to update your payment details or have any questions, please contact our support team.</p>
+            </div>
+            <div class="footer">
+                <p>© 2025 Certified Australia. All rights reserved.</p>
+                <p>Need help? <a href="mailto:support@certifiedaustralia.com.au">Contact Support</a></p>
+            </div>
+        </div>
+    </body>
+    </html>`;
+
+  const subject = `Direct Debit Setup Complete - Application ${applicationId}`;
+  await sendEmail(email, emailBody, subject);
+};
+
 module.exports = {
   getUserApplications,
   createNewApplication,
@@ -2126,4 +3280,10 @@ module.exports = {
   getApplicationById,
   processScheduledPayment,
   getAgentsKPIStats,
+  setupPaymentPlan,
+  processPaymentPlanPayment,
+  getPaymentPlanDetails,
+  updatePaymentPlan,
+  processScheduledPaymentPlanPayment,
+  setupDirectDebitForPaymentPlan,
 };

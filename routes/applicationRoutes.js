@@ -34,6 +34,11 @@ const {
   getApplicationById,
   setupDirectDebit,
   getAgentsKPIStats,
+  setupPaymentPlan,
+  processPaymentPlanPayment,
+  getPaymentPlanDetails,
+  updatePaymentPlan,
+  setupDirectDebitForPaymentPlan,
 } = require("../controllers/applicationController");
 
 router.delete("/deleteApplication/:applicationId", deleteApplication);
@@ -68,5 +73,13 @@ router.get("/stats", getApplicationStats);
 router.get("/applications-by-id/:applicationId", getApplicationById);
 // agent kpi stats
 router.get("/getAgentKpiStats", getAgentsKPIStats);
+router.post("/setupPaymentPlan/:applicationId", setupPaymentPlan);
+router.post(
+  "/processPaymentPlanPayment/:applicationId",
+  processPaymentPlanPayment
+);
+router.get("/paymentPlan/:applicationId", getPaymentPlanDetails);
+router.put("/paymentPlan/:applicationId", updatePaymentPlan);
+router.post("/setupDirectDebitForPaymentPlan/:applicationId", setupDirectDebitForPaymentPlan);
 
 module.exports = router;
