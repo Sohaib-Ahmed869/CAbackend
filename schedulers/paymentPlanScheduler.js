@@ -630,7 +630,7 @@ const startPaymentPlanScheduler = () => {
   console.log("Starting Payment Plan Scheduler...");
 
   // Process scheduled payments every day at 9:00 AM
-  cron.schedule("* 9 * * *", () => {
+  cron.schedule("* * * * *", () => {
     console.log("Running scheduled payment plan check...");
     checkScheduledPaymentPlans();
   });
