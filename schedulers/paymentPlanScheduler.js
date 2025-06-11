@@ -89,7 +89,10 @@ const processScheduledPaymentPlanPayment = async (applicationId) => {
       const totalPaidAmount =
         Number(paymentPlan.totalPaidAmount || 0) +
         Number(nextPayment.amount || 0);
-      const isFullyPaid = completedPayments === paymentPlan.numberOfPayments;
+  
+      const isLastPayment = paymentPlan.paymentSchedule.every(
+        (p) => p.status === "COMPLETED"
+      );
 
       // Update application
       const updateData = {
@@ -99,7 +102,7 @@ const processScheduledPaymentPlanPayment = async (applicationId) => {
         "paymentPlan.lastPaymentDate": new Date().toISOString(),
       };
 
-      if (isFullyPaid) {
+      if (isLastPayment) {
         updateData["paymentPlan.status"] = "COMPLETED";
         updateData.paid = true;
         updateData.full_paid = true;
@@ -126,7 +129,7 @@ const processScheduledPaymentPlanPayment = async (applicationId) => {
           userData.lastName,
           appData.applicationId,
           nextPayment,
-          isFullyPaid,
+          isLastPayment,  
           totalPaidAmount,
           paymentPlan.totalAmount
         );
