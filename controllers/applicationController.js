@@ -1467,7 +1467,7 @@ const processPayment = async (req, res) => {
     const payment = await squareClient.paymentsApi.createPayment({
       // sourceId: sourceId, //
       sourceId: sourceId,
-      idempotencyKey: `${applicationId}`,
+      idempotencyKey: `${applicationId}-${Date.now()}`,
       amountMoney: {
         amount: amountInCents,
         currency: "AUD",
@@ -1516,7 +1516,7 @@ const processPayment = async (req, res) => {
 
         // Create Square card
         const cardResponse = await squareClient.cardsApi.createCard({
-          idempotencyKey: `${applicationId}`,
+          idempotencyKey: `${applicationId}-${Date.now()}`,
           sourceId: sourceId, // Use a valid sourceId
           card: {
             customerId: customerResponse.result.customer.id,
@@ -2283,9 +2283,7 @@ const processScheduledPaymentPlanPayment = async (applicationId) => {
     // Process payment with Square
     const payment = await squareClient.paymentsApi.createPayment({
       sourceId: paymentPlan.directDebit.squareCardId,
-      idempotencyKey: `${applicationId}-payment-${
-        nextPayment.paymentNumber
-      }-${Date.now()}`,
+      idempotencyKey: `${applicationId}-${Date.now()}`,
       amountMoney: {
         amount: Math.round(nextPayment.amount * 100),
         currency: "AUD",
@@ -2426,7 +2424,7 @@ const processPaymentPlanPayment = async (req, res) => {
 
         // Create Square card
         const cardResponse = await squareClient.cardsApi.createCard({
-          idempotencyKey: `${applicationId}`,
+          idempotencyKey: `${applicationId}-${Date.now()}`,
           sourceId: sourceId, // Use test sourceId
           card: {
             customerId: customerResponse.result.customer.id,
@@ -2601,7 +2599,7 @@ const processPaymentPlanPayment = async (req, res) => {
     // Process payment
     const payment = await squareClient.paymentsApi.createPayment({
       sourceId: sourceId, // Use a valid test sourceId
-      idempotencyKey: `${applicationId}`,
+      idempotencyKey: `${applicationId}-${Date.now()}`,
       amountMoney: {
         amount: Math.round(targetPayment.amount * 100),
         currency: "AUD",
@@ -3097,7 +3095,7 @@ const setupDirectDebitForPaymentPlan = async (req, res) => {
 
     // Create Square card
     const cardResponse = await squareClient.cardsApi.createCard({
-      idempotencyKey: `${applicationId}-card-${Date.now()}`,
+      idempotencyKey: `${applicationId}-${Date.now()}`,
       sourceId: sourceId,
       card: {
         customerId: customerId,
