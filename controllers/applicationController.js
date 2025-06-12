@@ -2123,7 +2123,19 @@ const setupPaymentPlan = async (req, res) => {
     const applicationData = applicationDoc.data();
     const userId = applicationData.userId;
 
-    // Calculate payment schedule
+    // Calculate adjusted total amount for payment plan
+    let adjustedTotalAmount = totalAmount;
+
+    // If application has partial scheme and payment1 is already made, subtract it from total
+    if (
+      applicationData.partialScheme &&
+      applicationData.paid &&
+      !applicationData.full_paid
+    ) {
+      adjustedTotalAmount = totalAmount - (applicationData.payment1 || 0);
+    }
+
+    // Calculate payment schedule with adjusted amount
     const paymentSchedule = generatePaymentSchedule({
       frequency,
       numberOfPayments,
@@ -2136,7 +2148,8 @@ const setupPaymentPlan = async (req, res) => {
     // Prepare update data
     const updateData = {
       paymentPlan: {
-        totalAmount: totalAmount,
+        totalAmount: adjustedTotalAmount, // Use adjusted amount
+        originalTotalAmount: totalAmount, // Keep track of original amount
         frequency: frequency,
         numberOfPayments: numberOfPayments,
         firstPaymentAmount: firstPaymentAmount,
@@ -2146,13 +2159,21 @@ const setupPaymentPlan = async (req, res) => {
         paymentSchedule: paymentSchedule,
         currentPaymentIndex: 0,
         completedPayments: 0,
-        totalPaidAmount: 0,
+        totalPaidAmount:
+          applicationData.partialScheme && applicationData.paid
+            ? applicationData.payment1 || 0
+            : 0, // Include payment1 if already paid
         status: "ACTIVE",
         createdAt: new Date().toISOString(),
+        previousPartialPayment:
+          applicationData.partialScheme && applicationData.paid
+            ? applicationData.payment1
+            : null, // Track partial payment
       },
       paymentPlanEnabled: true,
-      paid: false,
-      full_paid: false,
+      // Don't override paid/full_paid status if partial payment already made
+      paid: applicationData.paid || false,
+      full_paid: applicationData.full_paid || false,
     };
 
     if (directDebitEnabled) {
@@ -2179,7 +2200,7 @@ const setupPaymentPlan = async (req, res) => {
         applicationData.applicationId,
         paymentSchedule,
         frequency,
-        totalAmount,
+        adjustedTotalAmount, // Use adjusted amount in email
         directDebitEnabled
       );
     }
@@ -2188,6 +2209,11 @@ const setupPaymentPlan = async (req, res) => {
       message: "Payment plan created successfully",
       paymentSchedule: paymentSchedule,
       directDebitEnabled: directDebitEnabled,
+      adjustedTotalAmount: adjustedTotalAmount,
+      previousPartialPayment:
+        applicationData.partialScheme && applicationData.paid
+          ? applicationData.payment1
+          : null,
     });
   } catch (error) {
     console.error("Error setting up payment plan:", error);
@@ -2658,7 +2684,6 @@ const processPaymentPlanPayment = async (req, res) => {
         directDebitSetup: shouldSetupDirectDebit,
       });
 
-  
       // Send payment confirmation emails
       const userRef = await db.collection("users").doc(appData.userId).get();
       if (userRef.exists) {
