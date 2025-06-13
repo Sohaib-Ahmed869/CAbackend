@@ -645,7 +645,7 @@ const startPaymentPlanScheduler = () => {
   });
 
   // Health check - log scheduler status every hour
-  cron.schedule("0 * * * *", () => {
+  cron.schedule("0 9 * * *", () => {
     console.log(
       `Payment Plan Scheduler is running - ${new Date().toISOString()}`
     );
