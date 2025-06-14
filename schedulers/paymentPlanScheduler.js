@@ -89,7 +89,7 @@ const processScheduledPaymentPlanPayment = async (applicationId) => {
       const totalPaidAmount =
         Number(paymentPlan.totalPaidAmount || 0) +
         Number(nextPayment.amount || 0);
-  
+
       const isLastPayment = paymentPlan.paymentSchedule.every(
         (p) => p.status === "COMPLETED"
       );
@@ -129,7 +129,7 @@ const processScheduledPaymentPlanPayment = async (applicationId) => {
           userData.lastName,
           appData.applicationId,
           nextPayment,
-          isLastPayment,  
+          isLastPayment,
           totalPaidAmount,
           paymentPlan.totalAmount
         );
@@ -633,7 +633,7 @@ const startPaymentPlanScheduler = () => {
   console.log("Starting Payment Plan Scheduler...");
 
   // Process scheduled payments every day at 9:00 AM
-  cron.schedule("* 9 * * *", () => {
+  cron.schedule("0 9 * * *", () => {
     console.log("Running scheduled payment plan check...");
     checkScheduledPaymentPlans();
   });
