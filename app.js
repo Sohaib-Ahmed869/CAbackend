@@ -28,6 +28,7 @@ const assessorRoutes = require("./routes/assesorRoutes");
 const taskRoutes = require("./routes/taskRoutes");
 const timerRoutes = require("./routes/timerRoutes");
 const FormRoutes = require("./routes/rtoFormRoutes");
+const ForcastingRoutes = require("./routes/forecastingRoutes");
 const {
   startPaymentPlanScheduler,
 } = require("./schedulers/paymentPlanScheduler");
@@ -83,6 +84,7 @@ app.use("/api/industry", industryRoutes);
 app.use("/api/assessor", assessorRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/timer", timerRoutes);
+app.use("/api/forecasting", ForcastingRoutes);
 startPaymentPlanScheduler();
 
 // Chatbot API endpoint

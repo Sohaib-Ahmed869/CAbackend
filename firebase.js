@@ -9,7 +9,7 @@ const serviceAccount = require("./serviceAccountKey.json");
 // Initialize Firebase Admin SDK
 const app = initializeApp({
   credential: cert(serviceAccount),
-  // storageBucket: "gs://testca-e3e5e.firebasestorage.app",
+  //storageBucket: "gs://testca-e3e5e.firebasestorage.app",
   storageBucket: "gs://certifiedaustralia1.appspot.com",
 });
 

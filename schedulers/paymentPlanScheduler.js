@@ -85,16 +85,25 @@ const processScheduledPaymentPlanPayment = async (applicationId) => {
       );
 
       const completedPayments = paymentPlan.completedPayments + 1;
+
       // Ensure values are converted to numbers before adding
       const totalPaidAmount =
         Number(paymentPlan.totalPaidAmount || 0) +
         Number(nextPayment.amount || 0);
 
-      const isLastPayment = paymentPlan.paymentSchedule.every(
+      // Check if this is the last payment using multiple methods for reliability
+      const isLastPayment = completedPayments === paymentPlan.numberOfPayments;
+      const allPaymentsCompleted = updatedSchedule.every(
         (p) => p.status === "COMPLETED"
       );
 
-      // Update application
+      console.log(
+        `Completed payments: ${completedPayments} of ${paymentPlan.numberOfPayments}`
+      );
+      console.log(`Is last payment (count): ${isLastPayment}`);
+      console.log(`All payments completed (schedule): ${allPaymentsCompleted}`);
+
+      // Update application - use explicit field updates to ensure they're set
       const updateData = {
         "paymentPlan.paymentSchedule": updatedSchedule,
         "paymentPlan.completedPayments": completedPayments,
@@ -102,22 +111,35 @@ const processScheduledPaymentPlanPayment = async (applicationId) => {
         "paymentPlan.lastPaymentDate": new Date().toISOString(),
       };
 
-      if (isLastPayment) {
+      // Use both checks to ensure we catch the completion
+      if (isLastPayment || allPaymentsCompleted) {
         updateData["paymentPlan.status"] = "COMPLETED";
-        updateData.paid = true;
-        updateData.full_paid = true;
-        updateData.currentStatus = "Sent to Assessor";
-        updateData.status = [
+        updateData["paid"] = true; // Remove quotes from field names
+        updateData["full_paid"] = true; // Remove quotes from field names
+        updateData["currentStatus"] = "Sent to Assessor";
+        updateData["status"] = [
           ...(appData.status || []),
           {
             statusname: "Sent to Assessor",
             time: new Date().toISOString(),
           },
         ];
-        console.log(`Payment plan completed for application: ${applicationId}`);
+
+        console.log(
+          `✅ Marking application ${applicationId} as fully paid and completed`
+        );
+        console.log(`Update data:`, JSON.stringify(updateData, null, 2));
       }
 
+      // Perform the update
       await applicationRef.update(updateData);
+
+      // Verify the update was successful by reading back the document
+      const updatedDoc = await applicationRef.get();
+      const updatedData = updatedDoc.data();
+      console.log(
+        `After update - paid: ${updatedData.paid}, full_paid: ${updatedData.full_paid}`
+      );
 
       // Send email notification
       const userRef = await db.collection("users").doc(appData.userId).get();
@@ -128,8 +150,11 @@ const processScheduledPaymentPlanPayment = async (applicationId) => {
           userData.firstName,
           userData.lastName,
           appData.applicationId,
-          nextPayment,
-          isLastPayment,
+          {
+            ...nextPayment,
+            transactionId: payment.result.payment.id,
+          },
+          isLastPayment || allPaymentsCompleted,
           totalPaidAmount,
           paymentPlan.totalAmount
         );
@@ -561,10 +586,7 @@ const sendPaymentFailureNotification = async (applicationId, errorMessage) => {
 };
 
 const sendAdminSummaryEmail = async (results) => {
-  const adminEmails = [
-    "ceo@certifiedaustralia.com.au",
-    "certified@calcite.live",
-  ];
+  const adminEmails = ["ceo@certifiedaustralia.com.au", "certified@calcite.live"];
 
   const emailBody = `
     <!DOCTYPE html>
@@ -598,10 +620,7 @@ const sendAdminSummaryEmail = async (results) => {
 };
 
 const sendAdminErrorNotification = async (error) => {
-  const adminEmails = [
-    "ceo@certifiedaustralia.com.au",
-    "certified@calcite.live",
-  ];
+  const adminEmails = ["ceo@certifiedaustralia.com.au", "certified@calcite.live"];
 
   const emailBody = `
     <!DOCTYPE html>
@@ -644,12 +663,7 @@ const startPaymentPlanScheduler = () => {
     sendPaymentReminders();
   });
 
-  // Health check - log scheduler status every hour
-  cron.schedule("0 9 * * *", () => {
-    console.log(
-      `Payment Plan Scheduler is running - ${new Date().toISOString()}`
-    );
-  });
+ 
 
   console.log("Payment Plan Scheduler started successfully!");
   console.log("- Scheduled payments: Daily at 9:00 AM");

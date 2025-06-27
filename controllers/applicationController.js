@@ -1465,8 +1465,8 @@ const processPayment = async (req, res) => {
 
     // Process payment with actual sourceId
     const payment = await squareClient.paymentsApi.createPayment({
-      // sourceId: sourceId, //
       sourceId: sourceId,
+      //sourceId: "cnon:card-nonce-ok", // Use a valid sourceId for testing
       idempotencyKey: `${applicationId}-${Date.now()}`,
       amountMoney: {
         amount: amountInCents,
@@ -1994,7 +1994,7 @@ const getApplicationStats = async (req, res) => {
     // Calculate date 6 months ago from today
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-    
+
     const applicationsSnapshot = await db.collection("applications").get();
     const allApplications = applicationsSnapshot.docs.map((doc) => doc.data());
 
@@ -2002,7 +2002,7 @@ const getApplicationStats = async (req, res) => {
     const applications = allApplications.filter((app) => {
       // Check if archived is false (or undefined/null - treat as not archived)
       const isNotArchived = app.archive === false || app.archive == null;
-      
+
       if (isNotArchived && app.status && app.status.length > 0) {
         const creationDate = new Date(app.status[0].time);
         return creationDate >= sixMonthsAgo;
@@ -2091,17 +2091,20 @@ const getApplicationStats = async (req, res) => {
 
     // Add some additional useful stats
     stats.completionRate = {
-      percentage: applications.length > 0 
-        ? ((stats.paymentStats.paid / stats.totalApplications) * 100).toFixed(2)
-        : "0.00",
+      percentage:
+        applications.length > 0
+          ? ((stats.paymentStats.paid / stats.totalApplications) * 100).toFixed(
+              2
+            )
+          : "0.00",
       total: stats.totalApplications,
       completed: stats.paymentStats.paid,
     };
 
     // Add date range info for clarity
     stats.dateRange = {
-      from: sixMonthsAgo.toISOString().split('T')[0],
-      to: new Date().toISOString().split('T')[0],
+      from: sixMonthsAgo.toISOString().split("T")[0],
+      to: new Date().toISOString().split("T")[0],
     };
 
     res.status(200).json({
@@ -2315,12 +2318,20 @@ const processScheduledPaymentPlanPayment = async (applicationId) => {
     }
 
     // Find next pending payment
+    // Find next pending payment
     const nextPayment = paymentPlan.paymentSchedule.find(
       (payment) => payment.status === "PENDING"
     );
 
     if (!nextPayment) return false;
 
+    // NEW CODE: Don't process scheduled payments for paused plans
+    if (paymentPlan.status === "PAUSED") {
+      console.log(
+        `Skipping scheduled payment for paused plan: ${applicationId}`
+      );
+      return false;
+    }
     // Check if payment is due (current date >= due date)
     const currentDate = new Date();
     const dueDate = new Date(nextPayment.dueDate);
@@ -2432,7 +2443,10 @@ const processPaymentPlanPayment = async (req, res) => {
     const paymentPlan = appData.paymentPlan;
     const userId = appData.userId;
 
-    if (!paymentPlan || paymentPlan.status !== "ACTIVE") {
+    if (
+      !paymentPlan ||
+      (paymentPlan.status !== "ACTIVE" && paymentPlan.status !== "PAUSED")
+    ) {
       return res.status(400).json({ message: "Invalid payment plan" });
     }
 
@@ -2447,6 +2461,9 @@ const processPaymentPlanPayment = async (req, res) => {
         .status(400)
         .json({ message: "Payment not found or already completed" });
     }
+
+    const isConsolidatedPayment =
+      targetPayment.isConsolidated && paymentPlan.status === "PAUSED";
 
     // Setup direct debit if this is the first payment and direct debit is enabled but not set up
     let shouldSetupDirectDebit = false;
@@ -2473,6 +2490,7 @@ const processPaymentPlanPayment = async (req, res) => {
         const cardResponse = await squareClient.cardsApi.createCard({
           idempotencyKey: `${applicationId}-${Date.now()}`,
           sourceId: sourceId, // Use test sourceId
+         // sourceId: "cnon:card-nonce-ok", // Use a test card nonce for development
           card: {
             customerId: customerResponse.result.customer.id,
           },
@@ -2645,7 +2663,8 @@ const processPaymentPlanPayment = async (req, res) => {
 
     // Process payment
     const payment = await squareClient.paymentsApi.createPayment({
-      sourceId: sourceId, // Use a valid test sourceId
+      // sourceId: sourceId, // Use a valid test sourceId
+      sourceId: sourceId ,
       idempotencyKey: `${applicationId}-${Date.now()}`,
       amountMoney: {
         amount: Math.round(targetPayment.amount * 100),
@@ -2672,7 +2691,21 @@ const processPaymentPlanPayment = async (req, res) => {
       const totalPaidAmount =
         Number(paymentPlan.totalPaidAmount || 0) +
         Number(targetPayment.amount || 0);
+
+      // FIXED: Check if this is the last payment using multiple methods for reliability
+      // FIXED: Check if this is the last payment using multiple methods for reliability
       const isFullyPaid = completedPayments === paymentPlan.numberOfPayments;
+      const allPaymentsCompleted = updatedSchedule.every(
+        (p) => p.status === "COMPLETED" || p.status === "CANCELLED"
+      );
+      const isConsolidatedPaymentCompleted = isConsolidatedPayment; // If consolidated payment is made, plan is complete
+      console.log(
+        `Manual payment - Completed payments: ${completedPayments} of ${paymentPlan.numberOfPayments}`
+      );
+      console.log(`Manual payment - Is fully paid (count): ${isFullyPaid}`);
+      console.log(
+        `Manual payment - All payments completed (schedule): ${allPaymentsCompleted}`
+      );
 
       // Update application
       const updateData = {
@@ -2682,27 +2715,50 @@ const processPaymentPlanPayment = async (req, res) => {
         "paymentPlan.lastPaymentDate": new Date().toISOString(),
       };
 
-      if (isFullyPaid) {
+      // FIXED: Use both checks to ensure we catch the completion
+      // FIXED: Use both checks to ensure we catch the completion, including consolidated payments
+      if (
+        isFullyPaid ||
+        allPaymentsCompleted ||
+        isConsolidatedPaymentCompleted
+      ) {
         updateData["paymentPlan.status"] = "COMPLETED";
-        updateData.paid = true;
-        updateData.full_paid = true;
-        updateData.currentStatus = "Sent to Assessor";
-        updateData.status = [
+        updateData["paid"] = true; // Removed quotes from field names
+        updateData["full_paid"] = true; // Removed quotes from field names
+        updateData["currentStatus"] = "Sent to Assessor";
+        updateData["status"] = [
           ...(appData.status || []),
           {
             statusname: "Sent to Assessor",
             time: new Date().toISOString(),
           },
         ];
+
+        console.log(
+          `✅ Manual payment - Marking application ${applicationId} as fully paid and completed`
+        );
+        console.log(
+          `Manual payment - Update data:`,
+          JSON.stringify(updateData, null, 2)
+        );
       }
 
       await applicationRef.update(updateData);
 
+      // FIXED: Verify the update was successful by reading back the document
+      const updatedDoc = await applicationRef.get();
+      const updatedData = updatedDoc.data();
+      console.log(
+        `Manual payment - After update - paid: ${updatedData.paid}, full_paid: ${updatedData.full_paid}`
+      );
+
       res.json({
         success: true,
-        isFullyPaid: isFullyPaid,
+        isFullyPaid:
+          isFullyPaid || allPaymentsCompleted || isConsolidatedPaymentCompleted, // Use the corrected logic
         totalPaidAmount: totalPaidAmount,
         directDebitSetup: shouldSetupDirectDebit,
+        paymentPlan: updatedDoc.data().paymentPlan, // Include updated payment plan
       });
 
       // Send payment confirmation emails
@@ -2714,8 +2770,11 @@ const processPaymentPlanPayment = async (req, res) => {
           userData.firstName,
           userData.lastName,
           appData.applicationId,
-          targetPayment,
-          isFullyPaid,
+          {
+            ...targetPayment,
+            transactionId: payment.result.payment.id,
+          },
+          isFullyPaid || allPaymentsCompleted || isConsolidatedPaymentCompleted, // Use the corrected logic
           totalPaidAmount,
           paymentPlan.totalAmount
         );
@@ -2758,7 +2817,13 @@ const processPaymentPlanPayment = async (req, res) => {
         }
       }
 
-      if (isFullyPaid) {
+      // FIXED: Use both checks to ensure we catch the completion, including consolidated payments
+      if (
+        isFullyPaid ||
+        allPaymentsCompleted ||
+        isConsolidatedPaymentCompleted
+      ) {
+        // Use the corrected logic
         await checkApplicationStatusAndSendEmails(
           applicationId,
           "payment_made"
@@ -2833,13 +2898,45 @@ const updatePaymentPlan = async (req, res) => {
 
     switch (action) {
       case "pause":
+        // Calculate remaining amount
+        const remainingAmount =
+          paymentPlan.totalAmount - (paymentPlan.totalPaidAmount || 0);
+
+        // Update payment schedule - mark future payments as cancelled
+        const updatedSchedule = paymentPlan.paymentSchedule.map((payment) => {
+          if (payment.status === "PENDING") {
+            return { ...payment, status: "CANCELLED" };
+          }
+          return payment;
+        });
+
+        // Add one consolidated payment for remaining amount if there's any remaining
+        if (remainingAmount > 0) {
+          const nextPaymentNumber =
+            Math.max(
+              ...paymentPlan.paymentSchedule.map((p) => p.paymentNumber)
+            ) + 1;
+
+          updatedSchedule.push({
+            paymentNumber: nextPaymentNumber,
+            amount: parseFloat(remainingAmount.toFixed(2)),
+            dueDate: new Date().toISOString(), // Due immediately
+            status: "PENDING",
+            isConsolidated: true, // Flag to identify this as a consolidated payment
+          });
+        }
+
         updates["paymentPlan.status"] = "PAUSED";
         updates["paymentPlan.pausedAt"] = new Date().toISOString();
+        updates["paymentPlan.paymentSchedule"] = updatedSchedule;
+        updates["paymentPlan.numberOfPayments"] = updatedSchedule.filter(
+          (p) => p.status !== "CANCELLED"
+        ).length;
+
         if (paymentPlan.directDebit?.enabled) {
           updates["paymentPlan.directDebit.status"] = "PAUSED";
         }
         break;
-
       case "resume":
         updates["paymentPlan.status"] = "ACTIVE";
         updates["paymentPlan.resumedAt"] = new Date().toISOString();
@@ -2865,8 +2962,13 @@ const updatePaymentPlan = async (req, res) => {
 
     await applicationRef.update(updates);
 
+    // Fetch the updated document to return the latest paymentPlan
+    const updatedDoc = await applicationRef.get();
+    const updatedPaymentPlan = updatedDoc.data().paymentPlan;
+
     res.json({
       message: `Payment plan ${action}d successfully`,
+      paymentPlan: updatedPaymentPlan, // Return the updated payment plan
       updatedFields: Object.keys(updates),
     });
   } catch (error) {
