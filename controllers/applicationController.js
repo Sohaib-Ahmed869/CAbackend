@@ -1991,8 +1991,24 @@ const sendToRTO = async (req, res) => {
 
 const getApplicationStats = async (req, res) => {
   try {
+    // Calculate date 6 months ago from today
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    
     const applicationsSnapshot = await db.collection("applications").get();
-    const applications = applicationsSnapshot.docs.map((doc) => doc.data());
+    const allApplications = applicationsSnapshot.docs.map((doc) => doc.data());
+
+    // Filter applications to only include those from the last 6 months and not archived
+    const applications = allApplications.filter((app) => {
+      // Check if archived is false (or undefined/null - treat as not archived)
+      const isNotArchived = app.archive === false || app.archive == null;
+      
+      if (isNotArchived && app.status && app.status.length > 0) {
+        const creationDate = new Date(app.status[0].time);
+        return creationDate >= sixMonthsAgo;
+      }
+      return false; // Exclude applications without status/creation date or archived applications
+    });
 
     // Initialize statistics object
     const stats = {
@@ -2007,7 +2023,7 @@ const getApplicationStats = async (req, res) => {
       applicationsByMonth: {},
     };
 
-    // Get all initialFormIds
+    // Get all initialFormIds from filtered applications
     const initialFormIds = applications
       .map((app) => app.initialFormId)
       .filter((id) => id); // Remove null/undefined
@@ -2028,7 +2044,7 @@ const getApplicationStats = async (req, res) => {
       });
     }
 
-    // Process each application
+    // Process each application (now only last 6 months)
     applications.forEach((app) => {
       // Count by qualification if initial form exists
       if (app.initialFormId && initialFormsMap[app.initialFormId]) {
@@ -2075,12 +2091,17 @@ const getApplicationStats = async (req, res) => {
 
     // Add some additional useful stats
     stats.completionRate = {
-      percentage: (
-        (stats.paymentStats.paid / stats.totalApplications) *
-        100
-      ).toFixed(2),
+      percentage: applications.length > 0 
+        ? ((stats.paymentStats.paid / stats.totalApplications) * 100).toFixed(2)
+        : "0.00",
       total: stats.totalApplications,
       completed: stats.paymentStats.paid,
+    };
+
+    // Add date range info for clarity
+    stats.dateRange = {
+      from: sixMonthsAgo.toISOString().split('T')[0],
+      to: new Date().toISOString().split('T')[0],
     };
 
     res.status(200).json({

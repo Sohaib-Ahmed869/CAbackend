@@ -28,7 +28,9 @@ const assessorRoutes = require("./routes/assesorRoutes");
 const taskRoutes = require("./routes/taskRoutes");
 const timerRoutes = require("./routes/timerRoutes");
 const FormRoutes = require("./routes/rtoFormRoutes");
-const { startPaymentPlanScheduler } = require('./schedulers/paymentPlanScheduler');
+const {
+  startPaymentPlanScheduler,
+} = require("./schedulers/paymentPlanScheduler");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -45,13 +47,20 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use(bodyParser.json());
 app.use(
   cors({
-    // Configure your origins based on environment
-    origin:
-      process.env.NODE_ENV === "production"
-        ? "https://portal.certifiedaustralia.com.au"
-        : ["https://ca-silk.vercel.app", "http://localhost:5173"],
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    origin: [
+      "https://ca-silk.vercel.app",
+      "http://localhost:5173",
+      "https://portal.certifiedaustralia.com.au",
+    ],
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"], // Added OPTIONS
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "Accept", // Required for file uploads
+      "Origin", // Required for CORS
+      "X-Requested-With", // Common for AJAX requests
+    ],
+    credentials: true, // Important for authenticated requests
   })
 );
 app.use(logRequest);
